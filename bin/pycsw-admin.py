@@ -34,172 +34,208 @@ import ConfigParser
 import getopt
 import logging
 import sys
+
 import argparse
+import os
 
 from pycsw.core import admin, config
 
 logger = logging.getLogger(__name__)
 
-def handle_load(args):
-    logger.debug("args: {}".format(args))
-    logger.debug("args.input_directory: {}".format(args.input_directory))
-    logger.debug("args.recursive: {}".format(args.recursive))
-    logger.debug("args.accept_changes: {}".format(args.accept_changes))
 
+class PycswAdminHandler(object):
+    config = None
+    config_defaults = {"table": "records",}
+    context = config.StaticContext()
 
-def handle_db(args):
-    logger.debug("args: {}".format(args))
+    def __init__(self):
+        self.config = None
 
+    def parse_configuration(self, config_path):
+        try:
+            self.config = ConfigParser.SafeConfigParser(self.config_defaults)
+            self.config.readfp(settings_path)
+        except AttributeError as err:
+            logger.error(e)
+            raise SystemExit
 
-def handle_export(args):
-    logger.debug("args: {}".format(args))
+    def handle_db(self, args):
+        database, table = self._get_db_settings()
+        if args.db_command == "create":
+            home = self.config.get('server', 'home')
+            admin.setup_db(database, table, home)
+        elif args.db_command == "optimize":
+            admin.optimize_db(self.context, database, table)
+        elif args.db_command == "rebuild":
+            admin.rebuild_db_indexes(database, table)
+        elif args.db_command == "clean":
+            force = args.force
+            if not force:
+                msg = "This will delete all records! Continue [Y/n] "
+                if raw_input(msg) == 'Y':
+                    force = True
+            if force:
+                admin.delete_records(self.context, database, table)
 
+    def handle_load(self, args):
+        database, table = self._get_db_settings()
+        admin.load_records(self.context, database, table, args.input_directory,
+                           args.recursive, args.accept_changes)
 
-def handle_harvest(args):
-    logger.debug("args: {}".format(args))
+    def handle_export(self, args):
+        database, table = self._get_db_settings()
+        admin.export_records(self.context, database, table, 
+                             args.output_directory)
 
+    def handle_harvest(self, args):
+        database, table = self._get_db_settings()
+        url = self.config.get("server", "url")
+        admin.refresh_harvested_records(self.context, database, table, url)
 
-def handle_sitemap(args):
-    logger.debug("args: {}".format(args))
+    def handle_sitemap(self, args):
+        database, table = self._get_db_settings()
+        url = self.config.get("server", "url")
+        admin.gen_sitemap(self.context, database, table, url, args.output_path)
 
+    def handle_post(self, args):
+        print(admin.post_xml(args.url, args.xml, args.timeout))
 
-def handle_post(args):
-    logger.debug("args: {}".format(args))
+    def handle_dependencies(self, args):
+        print(admin.get_sysprof())
 
+    def handle_validate(self, args):
+        admin.validate_xml(args.xml, args.xml_schema)
 
-def handle_dependencies(args):
-    logger.debug("args: {}".format(args))
+    def get_parser(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-v", "--verbose", action="store_true",
+                            help="Be verbose about the output")
+        parser.add_argument("-s", "--settings", 
+                            help="Filepath to pycsw configuration")
+        subparsers = parser.add_subparsers(title="Available commands")
+        self._add_db_parser(subparsers)
+        self._add_load_parser(subparsers)
+        self._add_export_parser(subparsers)
+        self._add_harvest_parser(subparsers)
+        self._add_sitemap_parser(subparsers)
+        self._add_post_parser(subparsers)
+        self._add_dependencies_parser(subparsers)
+        self._add_validate_parser(subparsers)
+        return parser
 
+    def _add_db_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser("db", help="Manage repository")
+        subsubparsers = parser.add_subparsers(title="subcommands")
+        subsubs = {
+            "create": [],
+            "optimize": [],
+            "rebuild": [],
+            "clean": [
+                (
+                    ("-y", "--accept-changes",),
+                    {
+                        "action": "store_true", 
+                        "help": "Do not prompt for confirmation",
+                    },
+                )
+            ],
+        }
+        for cmd, arguments in subsubs.iteritems():
+            p = subsubparsers.add_parser(cmd)
+            for a in arguments:
+                args, kwargs = a
+                p.add_argument(*args, **kwargs)
+            p.set_defaults(func=self.handle_db, db_command=cmd)
 
-def handle_validate(args):
-    logger.debug("args: {}".format(args))
+    def _add_load_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "load", 
+            help="Loads metadata records from directory into repository"
+        )
+        parser.add_argument(
+            "input_directory",
+            help="path to input directory to read metadata records"
+        )
+        parser.add_argument(
+            "-r", "--recursive", help="Read sub-directories recursively",
+            action="store_true")
+        parser.add_argument(
+            "-y", "--accept-changes", help="Force updates", action="store_true")
+        parser.set_defaults(func=self.handle_load)
 
+    def _add_export_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "export", 
+            help="Dump metadata records from repository into directory"
+        )
+        parser.add_argument(
+            "output_directory", 
+            help="path to output directory to write metadata records"
+        )
+        parser.set_defaults(func=self.handle_export)
 
-def get_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--verbosity", type=int, 
-                        help="Verbosity level. Defaults to %(default)s")
-    parser.add_argument("-s", "--settings", 
-                        help="Filepath to pycsw configuration")
-    subparsers = parser.add_subparsers(title="Available commands")
-    add_db_parser(subparsers, handle_db)
-    add_load_parser(subparsers, handle_load)
-    add_export_parser(subparsers, handle_export)
-    add_harvest_parser(subparsers, handle_harvest)
-    add_sitemap_parser(subparsers, handle_sitemap)
-    add_post_parser(subparsers, handle_post)
-    add_dependencies_parser(subparsers, handle_dependencies)
-    add_validate_parser(subparsers, handle_validate)
-    return parser
+    def _add_harvest_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "harvest", 
+            help="Refresh harvested records"
+        )
+        parser.set_defaults(func=self.handle_harvest)
 
+    def _add_sitemap_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "sitemap", help="Generate XML sitemap")
+        parser.add_argument(
+            "-o", "--output-path", 
+            help="full path to output file. Defaults to the current directory",
+            default=".")
+        parser.set_defaults(func=self.handle_sitemap)
 
-def add_db_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "db", help="Manage repository")
-    subsubparsers = parser.add_subparsers(title="subcommands")
-    create_parser = subsubparsers.add_parser("create")
-    optimize_parser = subsubparsers.add_parser("optimize")
-    rebuild_parser = subsubparsers.add_parser("rebuild")
-    clean_parser = subsubparsers.add_parser("clean")
-    clean_parser.add_argument(
-        "-y", "--accept-changes", help="Do not prompt for confirmation", 
-        action="store_true"
-    )
-    parser.set_defaults(func=handler)
+    def _add_post_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "post", help="Generate HTTP POST requests")
+        parser.add_argument("xml", help="Path to an XML file to be POSTed")
+        parser.add_argument(
+            "-u", "--url", default="http://localhost:8000/",
+            help="URL endpoint of the CSW server to contact. Defaults "
+                 "to %(default)s"
+        )
+        parser.add_argument(
+            "-t", "--timeout", type=int, default=30,
+            help="Timeout (in seconds) for HTTP requests. Defaults "
+                 "to %(default)s"
+        )
+        parser.set_defaults(func=self.handle_post)
 
+    def _add_dependencies_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "dependencies", help="Inspect the version of installed dependencies")
+        parser.set_defaults(func=self.handle_dependencies)
 
-def add_load_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "load", 
-        help="Loads metadata records from directory into repository"
-    )
-    parser.add_argument(
-        "input_directory",
-        help="path to input directory to read metadata records"
-    )
-    parser.add_argument(
-        "-r", "--recursive", help="Read sub-directories recursively",
-        action="store_true")
-    parser.add_argument(
-        "-y", "--accept-changes", help="Force updates", action="store_true")
-    parser.set_defaults(func=handler)
+    def _add_validate_parser(self, subparsers_obj):
+        parser = subparsers_obj.add_parser(
+            "validate", help="Validate XML files against schema documents")
+        parser.add_argument("xml", help="Path to an XML file to be validated")
+        parser.add_argument(
+            "-x", "--xml-schema",
+            help="Path to an XMl schema file to use for validation"
+        )
+        parser.set_defaults(func=self.handle_validate)
 
-def add_export_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "export", 
-        help="Dump metadata records from repository into directory"
-    )
-    parser.add_argument(
-        "output_directory", 
-        help="path to output directory to write metadata records"
-    )
-    parser.set_defaults(func=handler)
-
-
-def add_harvest_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "harvest", 
-        help="Refresh harvested records"
-    )
-    parser.set_defaults(func=handler)
-
-
-def add_sitemap_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "sitemap", help="Generate XML sitemap")
-    parser.add_argument(
-        "-o", "--output-path", 
-        help="full path to output file. Defaults to the current directory",
-        default=".")
-    parser.set_defaults(func=handler)
-
-
-def add_post_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "test", help="Generate test HTTP POST requests")
-    parser.add_argument("xml", help="Path to an XML file to be POSTed")
-    parser.add_argument(
-        "-u", "--url", default="http://localhost:8000/",
-        help="URL endpoint of the CSW server to contact. Defaults "
-             "to %(default)s"
-    )
-    parser.set_defaults(func=handler)
-
-
-def add_dependencies_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "dependencies", help="Inspect the version of installed dependencies")
-    parser.set_defaults(func=handler)
-
-
-def add_validate_parser(subparsers_obj, handler):
-    parser = subparsers_obj.add_parser(
-        "validate", help="Validate XML files against schema documents")
-    parser.add_argument("xml", help="Path to an XML file to be validated")
-    parser.add_argument(
-        "-x", "--xml-schema",
-        help="Path to an XMl schema file to use for validation"
-    )
-    parser.set_defaults(func=handler)
+    def _get_db_settings(self):
+        database = self.config.get("repository", "database")
+        table = self.config.get('repository', 'table')
+        return database, table
 
 
 if __name__ == "__main__":
-    parser = get_parser()
+    handler = PycswAdminHandler()
+    parser = handler.get_parser()
     args = parser.parse_args()
-    if args.verbosity >= 3:
-        log_level = logging.DEBUG
-    elif args.verbosity == 2:
-        log_level = logging.INFO
-    elif args.verbosity == 2:
-        log_level = logging.INFO
-    log_level = {
-        0: logging.ERROR,
-        1: logging.WARNING,
-        2: logging.INFO,
-        3: logging.DEBUG,
-    }.get(args.verbosity)
+    settings_path = args.settings or os.environ.get("PYCSW_SETTINGS")
+    if settings_path is not None:
+        handler.parse_configuration(settings_path)
+    log_level = logging.DEBUG if args.verbosity >= 1 else logging.ERROR
     logging.basicConfig(format='%(message)s', level=log_level)
-    context = config.StaticContext()
     args.func(args)
 
 
