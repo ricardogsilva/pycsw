@@ -50,9 +50,15 @@ class PycswAdminHandler(object):
     def __init__(self):
         self.config = None
 
-    def parse_configuration(self, config_path):
+    def parse_configuration(self, config):
         self.config = ConfigParser.SafeConfigParser(self.config_defaults)
-        self.config.readfp(open(config_path))
+        if isinstance(config, str):
+            self.config.readfp(open(config))
+        elif isinstance(config, dict):
+            for section, options in config.iteritems():
+                self.config.add_section(section)
+                for k, v in options.iteritems():
+                    self.config.set(section, k, v)
 
     def handle_db(self, args):
         database, table = self._get_db_settings()
