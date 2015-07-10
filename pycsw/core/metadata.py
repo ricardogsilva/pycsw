@@ -36,6 +36,8 @@ from geolinks.links import sniff_link
 from pycsw.core import util
 from pycsw.core.etree import etree
 
+import dateutil.parser
+
 LOGGER = logging.getLogger(__name__)
 
 def parse_record(context, record, repos=None,
@@ -103,6 +105,12 @@ def parse_record(context, record, repos=None,
 
 def _set(context, obj, name, value):
     ''' convenience method to set values '''
+    try:
+        # if the current value represents a datetime, lets create one and
+        # use that for storing in the database, instead of a string
+        value = dateutil.parser.parse(value)
+    except (AttributeError, ValueError):
+        pass
     setattr(obj, context.md_core_model['mappings'][name], value)
 
 def _parse_metadata(context, repos, record):

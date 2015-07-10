@@ -1517,6 +1517,7 @@ class Csw2(object):
             query['where'] = self.parent._cql_update_queryables_mappings(tmp.text,
             self.parent.repository.queryables['_all'])
             query['values'] = {}
+        query["values"] = util.convert_date_constraint_values(query["values"])
         return query
 
     def parse_postdata(self, postdata):
@@ -1694,6 +1695,7 @@ class Csw2(object):
                 request['constraint'] = self._parse_constraint(tmp)
                 if isinstance(request['constraint'], str):  # parse error
                     return 'Invalid Constraint: %s' % request['constraint']
+                LOGGER.info("request['constraint']: {}".format(request['constraint']))
             else:
                 LOGGER.debug('No csw:Constraint (ogc:Filter or csw:CqlText) \
                 specified.')

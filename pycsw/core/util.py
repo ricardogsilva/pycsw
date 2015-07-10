@@ -34,6 +34,7 @@ import time
 import datetime
 import logging
 import urllib2
+import dateutil.parser
 from shapely.wkt import loads
 from owslib.util import http_post
 from pycsw.core.etree import etree
@@ -437,3 +438,27 @@ def validate_4326(bbox_list):
         is_valid = True
 
     return is_valid
+
+
+def convert_date_constraint_values(query_values):
+    """
+    Convert dates and datetimes from strings to datetime objects
+
+    This function is called by iface when parsing a query's constraints.
+    It iterates through the input values and tries to convert
+    the ones that look like a date or datetime string into a proper python
+    `datetime.datetime` object.
+
+    :arg query_values: An iterable with the values being supplied
+        to perform a query
+    :type query_values: list
+    """
+
+    converted_values = []
+    for index, val in enumerate(query_values):
+        try:
+            date_time = dateutil.parser.parse(val)
+            converted_values.append(date_time)
+        except ValueError as err:
+            converted_values.append(val)
+    return converted_values

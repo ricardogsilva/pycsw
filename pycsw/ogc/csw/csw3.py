@@ -1600,6 +1600,7 @@ class Csw3(object):
             query['where'] = self.parent._cql_update_queryables_mappings(tmp.text,
             self.parent.repository.queryables['_all'])
             query['values'] = {}
+        query["values"] = util.convert_date_constraint_values(query["values"])
         return query
 
     def parse_postdata(self, postdata):

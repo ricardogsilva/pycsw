@@ -45,7 +45,7 @@ LOGGER = logging.getLogger(__name__)
 def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_functions=True, postgis_geometry_column='wkb_geometry', extra_columns=[], language='english'):
     """Setup database tables and indexes"""
     from sqlalchemy import Column, create_engine, Integer, MetaData, \
-        Table, Text
+        Table, Text, DateTime
     from sqlalchemy.orm import create_session
 
     LOGGER.info('Creating database %s', database)
@@ -122,7 +122,7 @@ def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_f
                index=True),
         Column('mdsource', Text, default='local', nullable=False,
                index=True),
-        Column('insert_date', Text, nullable=False, index=True),
+        Column('insert_date', DateTime, nullable=False, index=True),
         Column('xml', Text, nullable=False),
         Column('anytext', Text, nullable=False),
         Column('language', Text, index=True),
@@ -136,8 +136,8 @@ def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_f
         Column('keywordstype', Text, index=True),
         Column('parentidentifier', Text, index=True),
         Column('relation', Text, index=True),
-        Column('time_begin', Text, index=True),
-        Column('time_end', Text, index=True),
+        Column('time_begin', DateTime, index=True),
+        Column('time_end', DateTime, index=True),
         Column('topicategory', Text, index=True),
         Column('resourcelanguage', Text, index=True),
 
@@ -153,11 +153,11 @@ def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_f
         Column('otherconstraints', Text, index=True),
 
         # date
-        Column('date', Text, index=True),
-        Column('date_revision', Text, index=True),
-        Column('date_creation', Text, index=True),
-        Column('date_publication', Text, index=True),
-        Column('date_modified', Text, index=True),
+        Column('date', DateTime, index=True),
+        Column('date_revision', DateTime, index=True),
+        Column('date_creation', DateTime, index=True),
+        Column('date_publication', DateTime, index=True),
+        Column('date_modified', DateTime, index=True),
 
         Column('format', Text, index=True),
         Column('source', Text, index=True),
