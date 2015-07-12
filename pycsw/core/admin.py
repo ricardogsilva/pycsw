@@ -38,9 +38,21 @@ from glob import glob
 from pycsw.core import metadata, repository, util
 from pycsw.core.etree import etree
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from .dbhandlers import db_handler_factory
+
 LOGGER = logging.getLogger(__name__)
+Session = sessionmaker()
 
 
+def new_setup_db(database_url, verbose):
+    engine = create_engine(database_url, echo=verbose)
+    Session.configure(bind=engine)
+    session = Session()
+    db_handler = db_handler_factory(engine, session)
+    db_handler.setup_db()
 
 def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_functions=True, postgis_geometry_column='wkb_geometry', extra_columns=[], language='english'):
     """Setup database tables and indexes"""
