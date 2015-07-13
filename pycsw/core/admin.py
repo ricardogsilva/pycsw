@@ -41,18 +41,71 @@ from pycsw.core.etree import etree
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from .dbhandlers import db_handler_factory
+from .repositoryhandlers.handlerfactory import get_repository_handler
 
 LOGGER = logging.getLogger(__name__)
 Session = sessionmaker()
 
 
-def new_setup_db(database_url, verbose):
-    engine = create_engine(database_url, echo=verbose)
+def _get_repository_handler(database_url, echo=False):
+    engine = create_engine(database_url, echo=echo)
     Session.configure(bind=engine)
     session = Session()
-    db_handler = db_handler_factory(engine, session)
-    db_handler.setup_db()
+    repository_handler = get_repository_handler(engine, session)
+    return repository_handler
+
+
+def new_setup_db(database_url, verbose=False):
+    """Setup the database.
+
+    :param database_url: SQLAlchemy url with the path to the database to
+        create/use
+    :type database_url: str
+    :param verbose: Whether to echo the SQL statements issued by sqlalchemy
+        to standard output
+    :type verbose: bool
+    """
+
+    repository_handler = _get_repository_handler(database_url, echo=verbose)
+    repository_handler.setup_db()
+
+
+def new_load_records(database_url, xml_dirpath, recursive=False,
+                     force_update=False, verbose=False):
+    """Load metadata records from directory of files to database"""
+    repository_handler = _get_repository_handler(database_url, echo=verbose)
+    file_list = []
+    if recursive:
+        for root, dirs, files in os.walk(xml_dirpath):
+            for mfile in files:
+                if mfile.endswith('.xml'):
+                    file_list.append(os.path.join(root, mfile))
+    else:
+        for rec in glob(os.path.join(xml_dirpath, '*.xml')):
+            file_list.append(rec)
+    total = len(file_list)
+    for index, recfile in enumerate(file_list):
+        LOGGER.info(
+            'Processing file {} ({} of {})'.format(recfile, index+1, total))
+        try:
+            exml = etree.parse(recfile)
+            records = metadata.parse_record(context, exml, repository_handler)
+            msg = "Inserting {0.typename} {0.identifier} into database {1}, " \
+                  "table {2}..."
+            for record in records:
+                # TODO: do this as CSW Harvest
+                LOGGER.info(msg.format(record, database, table))
+                repository_handler.insert_record(record)
+        except etree.XMLSyntaxError as err:
+            LOGGER.warn('XML document is not well-formed: {}'.format(err))
+        except RuntimeError as err:
+            if force_update:
+                LOGGER.info('Record exists. Updating.')
+                repository_handler.update_record(record)
+                LOGGER.info('Updated')
+            else:
+                LOGGER.warn('ERROR: not inserted {}'.format(err))
+
 
 def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_functions=True, postgis_geometry_column='wkb_geometry', extra_columns=[], language='english'):
     """Setup database tables and indexes"""
