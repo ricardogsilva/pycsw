@@ -34,6 +34,7 @@ import time
 import datetime
 import logging
 import urllib2
+import importlib
 from shapely.wkt import loads
 from owslib.util import http_post
 from pycsw.core.etree import etree
@@ -437,3 +438,31 @@ def validate_4326(bbox_list):
         is_valid = True
 
     return is_valid
+
+
+def import_class(python_path, *args, **kwargs):
+    """
+    Lazily import a python class and instantiate it.
+
+    This function will import the module from the input class path and then
+    it will create an instance of the chosen class.
+
+    :param python_path: The python path to the class
+    :type python_path: str
+    :param args: Any positional arguments that should be passed to
+        the instance upon instantiation
+    :type args:  list
+    :param kwargs: Any named arguments that should be passed to
+        the instance upon instantiation plus the special argument
+        `importlib_package`, which can be used to support relative imports
+    :type kwargs: dict
+    :return: an instance of the newly imported class
+    """
+
+    importlib_package = kwargs.pop("importlib_package", None)
+    module_path, sep, class_name = python_path.rpartition(".")
+    the_module = importlib.import_module(
+        module_path, package=importlib_package)
+    the_class = getattr(the_module, class_name)
+    instance = the_class(*args, **kwargs)
+    return instance

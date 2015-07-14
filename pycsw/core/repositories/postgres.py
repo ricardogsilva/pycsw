@@ -4,13 +4,13 @@ Database handlers for postgresql dialects
 
 import logging
 
-from .base import RepositoryHandler
+from .base import Repository
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class PostgresqlRepositoryHandler(RepositoryHandler):
+class PostgresqlRepository(Repository):
 
     def create_plpythonu_functions(self):
         pass
@@ -19,18 +19,18 @@ class PostgresqlRepositoryHandler(RepositoryHandler):
         pass
 
     def setup_db(self, commit=True):
-        super(PostgresqlRepositoryHandler, self).setup_db(commit=False)
+        super(PostgresqlRepository, self).setup_db(commit=False)
         self.create_plpythonu_functions()
         self.create_fts_index()
         self.session.commit()
 
 
-class PostgisRepositoryHandler(PostgresqlRepositoryHandler):
+class PostgisRepository(PostgresqlRepository):
 
     def create_geometry_column(self):
         pass
 
     def setup_db(self, commit=True):
-        super(PostgisRepositoryHandler, self).setup_db(commit=False)
+        super(PostgisRepository, self).setup_db(commit=False)
         self.create_geometry_column()
         self.session.commit()

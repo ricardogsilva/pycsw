@@ -1,3 +1,9 @@
+import logging
+
+
+LOGGER = logging.getLogger(__name__)
+
+
 def sqlalchemy_transaction(other_func):
     """
     A decorator to wrap handler methods that deal with transactions
@@ -8,10 +14,12 @@ def sqlalchemy_transaction(other_func):
 
     def wrapper(instance, *args, **kwargs):
         try:
-            instance.session.begin()
+            #instance.session.begin()
             result = other_func(instance, *args, **kwargs)
+            instance.session.commit()
         except Exception as err:
             instance.session.rollback()
+            LOGGER.error(err)
             raise RuntimeError("ERROR: {}".format(err.orig))
         return result
     return wrapper

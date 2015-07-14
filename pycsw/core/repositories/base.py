@@ -6,12 +6,48 @@ from .. import models
 from ..models import Record
 from .. import util
 from .decorators import sqlalchemy_transaction
+# pycsw.core.repositories modules may be lazily imported if needed
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class RepositoryHandler(object):
+def get_repository(engine, session):
+    """
+    Return the appropriate handler for dealing with the input engine.
+
+    If the input engine specifies a postgresql dialect, we inspect the
+    database in order to determine if PostGIS is available.
+
+    :param engine:
+    :param session:
+    :return:
+    """
+
+    root = ".core.repositories"
+    if engine.dialect.name == "sqlite":
+        handler = util.import_class("{}.sqlite.SqliteRepository".format(root),
+                                    engine, session, importlib_package="pycsw")
+    elif engine.dialect.name == "postgresql":
+        postgis_lib_version = None
+        for row in session.execute('select(postgis_lib_version())'):
+            postgis_lib_version = row[0]
+        if postgis_lib_version is not None:
+            handler = util.import_class(
+                "{}.postgres.PostgresqlRepository".format(root),
+                engine, session, importlib_package="pycsw"
+            )
+        else:
+            handler = util.import_class(
+                "{}.postgres.PostgisRepository".format(root),
+                engine, session, importlib_package="pycsw"
+            )
+    else:
+        handler = Repository(engine, session)
+    return handler
+
+
+class Repository(object):
     engine = None
     session = None
     filter = None

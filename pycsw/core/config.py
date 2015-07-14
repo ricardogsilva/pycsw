@@ -29,7 +29,9 @@
 # =================================================================
 
 import logging
+
 from pycsw import __version__
+
 
 LOGGER = logging.getLogger(__name__)
 

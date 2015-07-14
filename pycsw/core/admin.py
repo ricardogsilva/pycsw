@@ -41,17 +41,18 @@ from pycsw.core.etree import etree
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from .repositoryhandlers.handlerfactory import get_repository_handler
+from .repositories.base import get_repository
+from .metadataparsers.base import parse_records
 
 LOGGER = logging.getLogger(__name__)
 Session = sessionmaker()
 
 
-def _get_repository_handler(database_url, echo=False):
+def _get_repository(database_url, echo=False):
     engine = create_engine(database_url, echo=echo)
     Session.configure(bind=engine)
     session = Session()
-    repository_handler = get_repository_handler(engine, session)
+    repository_handler = get_repository(engine, session)
     return repository_handler
 
 
@@ -64,47 +65,56 @@ def new_setup_db(database_url, verbose=False):
     :param verbose: Whether to echo the SQL statements issued by sqlalchemy
         to standard output
     :type verbose: bool
+    :return: the repository handler class
+    :rtype: pycsw.core.repositories.base.Repository or one of its subclasses
     """
 
-    repository_handler = _get_repository_handler(database_url, echo=verbose)
-    repository_handler.setup_db()
+    repository = _get_repository(database_url, echo=verbose)
+    repository.setup_db()
+    return repository
 
 
 def new_load_records(database_url, xml_dirpath, recursive=False,
                      force_update=False, verbose=False):
     """Load metadata records from directory of files to database"""
-    repository_handler = _get_repository_handler(database_url, echo=verbose)
-    file_list = []
-    if recursive:
-        for root, dirs, files in os.walk(xml_dirpath):
-            for mfile in files:
-                if mfile.endswith('.xml'):
-                    file_list.append(os.path.join(root, mfile))
-    else:
-        for rec in glob(os.path.join(xml_dirpath, '*.xml')):
-            file_list.append(rec)
+    repository = _get_repository(database_url, echo=verbose)
+    file_list = _get_records_from_directory(xml_dirpath, recursive)
     total = len(file_list)
     for index, recfile in enumerate(file_list):
         LOGGER.info(
             'Processing file {} ({} of {})'.format(recfile, index+1, total))
         try:
             exml = etree.parse(recfile)
-            records = metadata.parse_record(context, exml, repository_handler)
+            records = parse_records(exml)
             msg = "Inserting {0.typename} {0.identifier} into database {1}, " \
                   "table {2}..."
             for record in records:
                 # TODO: do this as CSW Harvest
-                LOGGER.info(msg.format(record, database, table))
-                repository_handler.insert_record(record)
+                #LOGGER.info(msg.format(record, repository.engine.url.database, table))
+                repository.insert_record(record)
         except etree.XMLSyntaxError as err:
             LOGGER.warn('XML document is not well-formed: {}'.format(err))
         except RuntimeError as err:
             if force_update:
                 LOGGER.info('Record exists. Updating.')
-                repository_handler.update_record(record)
+                repository.update_record(record)
                 LOGGER.info('Updated')
             else:
                 LOGGER.warn('ERROR: not inserted {}'.format(err))
+
+
+def _get_records_from_directory(path, recursive):
+    """Return a list with the XML files present in the input directory"""
+    file_list = []
+    if recursive:
+        for root, dirs, files in os.walk(path):
+            for mfile in files:
+                if mfile.endswith('.xml'):
+                    file_list.append(os.path.join(root, mfile))
+    else:
+        for rec in glob(os.path.join(path, '*.xml')):
+            file_list.append(rec)
+    return file_list
 
 
 def setup_db(database, table, home, create_sfsql_tables=True, create_plpythonu_functions=True, postgis_geometry_column='wkb_geometry', extra_columns=[], language='english'):
