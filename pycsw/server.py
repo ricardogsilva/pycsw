@@ -46,7 +46,56 @@ from pycsw.core import config, log, metadata, util
 from pycsw.ogc.csw import csw2, csw3
 import logging
 
+from .core.configuration.configuration import Context
+
 LOGGER = logging.getLogger(__name__)
+
+
+class NewCsw(object):
+
+    def __init__(self, rtconfig=None, env=None, version="3.0.0"):
+        self.iface = {
+            "3.0.0": csw3.Csw3,
+            "2.0.2": csw2.Csw2,
+        }[version](server_csw=self)
+        self.request_version = version
+        self.environ = env or os.environ
+        try:
+            self.context = Context(settings=rtconfig, version=version)
+        except Exception as err:
+            self.response = self.iface.exceptionreport(
+                'NoApplicableCode', 'service',
+                'Error opening configuration {}'.format(rtconfig)
+            )
+            return
+
+        # Lazy load this when needed
+        # (it will permanently update global cfg namespaces)
+        self.sruobj = None
+        self.opensearchobj = None
+        self.oaipmhobj = None
+
+        # init kvp
+        self.kvp = {}
+
+        self.mode = 'csw'
+        self.async = False
+        self.soap = False
+        self.request = None
+        self.exception = False
+        self.status = 'OK'
+        self.profiles = None
+        self.manager = False
+        self.outputschemas = {}
+        self.mimetype = 'application/xml; charset=UTF-8'
+        self.encoding = 'UTF-8'
+        self.pretty_print = 0
+        self.domainquerytype = 'list'
+        self.orm = 'django'
+        self.language = {'639_code': 'en', 'text': 'english'}
+        self.process_time_start = time()
+
+        # to be continued...
 
 
 class Csw(object):

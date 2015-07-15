@@ -38,46 +38,24 @@ from glob import glob
 from pycsw.core import metadata, repository, util
 from pycsw.core.etree import etree
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from .repositories.base import get_repository
 from .metadataparsers.base import parse_records
 
 LOGGER = logging.getLogger(__name__)
-Session = sessionmaker()
 
 
-def _get_repository(database_url, echo=False):
-    engine = create_engine(database_url, echo=echo)
-    Session.configure(bind=engine)
-    session = Session()
-    repository_handler = get_repository(engine, session)
-    return repository_handler
-
-
-def new_setup_db(database_url, verbose=False):
+def new_setup_db(context, verbose=False):
     """Setup the database.
 
-    :param database_url: SQLAlchemy url with the path to the database to
-        create/use
-    :type database_url: str
-    :param verbose: Whether to echo the SQL statements issued by sqlalchemy
-        to standard output
-    :type verbose: bool
-    :return: the repository handler class
-    :rtype: pycsw.core.repositories.base.Repository or one of its subclasses
+    :param context:
+    :type context:
     """
 
-    repository = _get_repository(database_url, echo=verbose)
-    repository.setup_db()
-    return repository
+    context.repository.setup_db()
 
 
-def new_load_records(database_url, xml_dirpath, recursive=False,
+def new_load_records(context, xml_dirpath, recursive=False,
                      force_update=False, verbose=False):
     """Load metadata records from directory of files to database"""
-    repository = _get_repository(database_url, echo=verbose)
     file_list = _get_records_from_directory(xml_dirpath, recursive)
     total = len(file_list)
     for index, recfile in enumerate(file_list):
@@ -91,13 +69,13 @@ def new_load_records(database_url, xml_dirpath, recursive=False,
             for record in records:
                 # TODO: do this as CSW Harvest
                 #LOGGER.info(msg.format(record, repository.engine.url.database, table))
-                repository.insert_record(record)
+                context.repository.insert_record(record)
         except etree.XMLSyntaxError as err:
             LOGGER.warn('XML document is not well-formed: {}'.format(err))
         except RuntimeError as err:
             if force_update:
                 LOGGER.info('Record exists. Updating.')
-                repository.update_record(record)
+                context.repository.update_record(record)
                 LOGGER.info('Updated')
             else:
                 LOGGER.warn('ERROR: not inserted {}'.format(err))
