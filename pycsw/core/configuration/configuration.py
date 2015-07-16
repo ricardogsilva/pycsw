@@ -27,6 +27,7 @@ class Context(object):
     version = __version__
     ogc_schemas_base = 'http://schemas.opengis.net'
     model = None
+    loglevel = logging.ERROR
     csw_models = {
         '2.0.2': contextmodels.CswContextModel(),
         '3.0.0': contextmodels.Csw3ContextModel(),
@@ -41,6 +42,7 @@ class Context(object):
         'fes20': 'http://www.opengis.net/fes/2.0',
         'fgdc': 'http://www.opengis.net/cat/csw/csdgm',
         'gmd': 'http://www.isotc211.org/2005/gmd',
+        'gmi': 'http://www.isotc211.org/2005/gmi',
         'gml': 'http://www.opengis.net/gml',
         'ogc': 'http://www.opengis.net/ogc',
         'os': 'http://a9.com/-/spec/opensearch/1.1/',
@@ -62,7 +64,6 @@ class Context(object):
             "encoding": "UTF-8",
             "language": "en-US",
             "maxrecords": 10,
-            "loglevel": "ERROR",
             "logfile": "/tmp/pycsw.log",
             "federatedcatalogues": "http://catalog.data.gov/csw",
             "pretty_print": True,
@@ -177,7 +178,7 @@ class Context(object):
     def update_md_core_model(self, mappings_path):
         self.md_core_model.read_mappings(mappings_path)
 
-    def update_repository(self, database_url, echo=False):
+    def update_repository(self, database_url, echo=True):
         engine = create_engine(database_url, echo=echo)
         Session.configure(bind=engine)
         session = Session()
@@ -235,6 +236,11 @@ class Context(object):
 
     def _handle_special_option(self, option, raw_value):
         handled = True
+        if option == "loglevel":
+            try:
+                self.loglevel = getattr(logging, raw_value.upper())
+            except AttributeError as err:
+                raise RuntimeError(err)
         if option == "database":
             self.update_repository(raw_value)
         elif option == "table":

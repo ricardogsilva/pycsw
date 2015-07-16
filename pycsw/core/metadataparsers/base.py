@@ -1,69 +1,90 @@
 import logging
+from urlparse import urlparse
 
 from ..etree import etree
 from .. import util
+from ..configuration.configuration import Context
 # some more modules get imported in a lazy fashion, as needed.
 
 LOGGER = logging.getLogger(__name__)
 
 
-# TODO - Move these into the config module
-NAMESPACES = {
-    'atom': 'http://www.w3.org/2005/Atom',
-    'csw': 'http://www.opengis.net/cat/csw/2.0.2',
-    'csw30': 'http://www.opengis.net/cat/csw/3.0',
-    'dc': 'http://purl.org/dc/elements/1.1/',
-    'dct': 'http://purl.org/dc/terms/',
-    'dif': 'http://gcmd.gsfc.nasa.gov/Aboutus/xml/dif/',
-    'fes20': 'http://www.opengis.net/fes/2.0',
-    'fgdc': 'http://www.opengis.net/cat/csw/csdgm',
-    'gmd': 'http://www.isotc211.org/2005/gmd',
-    'gmi': 'http://www.isotc211.org/2005/gmi',
-    'gml': 'http://www.opengis.net/gml',
-    'ogc': 'http://www.opengis.net/ogc',
-    'os': 'http://a9.com/-/spec/opensearch/1.1/',
-    'ows': 'http://www.opengis.net/ows',
-    'ows11': 'http://www.opengis.net/ows/1.1',
-    'ows20': 'http://www.opengis.net/ows/2.0',
-    'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-    'sitemap': 'http://www.sitemaps.org/schemas/sitemap/0.9',
-    'soapenv': 'http://www.w3.org/2003/05/soap-envelope',
-    'xlink': 'http://www.w3.org/1999/xlink',
-    'xs': 'http://www.w3.org/2001/XMLSchema',
-    'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
-}
+class MetadataParser(object):
 
-def parse_records(record_description):
-    """
-    Parse a record into a models.Record instance
+    def parse_description(self, description, type_=None):
+        records = []
+        try:
+            parsed_url = urlparse(description)
+            if parsed_url.scheme == "http":
+                records = self._parse_remote_description(description, type_)
+            elif parsed_url.scheme == "":
+                records = self._parse_local_description(description)
+        except KeyError:
+            # description is probably some form of metadata record already
+            records = self._parse_local_description(description)
+        return records
 
-    :param record_description:
-    :return:
-    """
-
-    if isinstance(record_description, str):
-        exml = etree.fromstring(record_description)
-    else:  # already serialized to lxml
-        if hasattr(record_description, 'getroot'):  # standalone document
-            exml = record_description.getroot()
-        else:  # part of a larger document
-            exml = record_description
-    LOGGER.debug('Serialized metadata, parsing content model')
-    parsing_class_path = {
-        'metadata': "fgdc.FgdcParser",
-        '{{{}}}MD_Metadata'.format(NAMESPACES['gmd']): "iso19139.IsoParser",
-        '{{{}}}MI_Metadata'.format(NAMESPACES["gmi"]): "iso19139.IsoParser",
-        '{{{}}}Record'.format(NAMESPACES["csw"]): "dublincore.DcParser",
-        '{{{}}}RDF'.format(NAMESPACES["rdf"]): "dublincore.DcParser",
-        '{{{}}}DIF'.format(NAMESPACES["dif"]): None,
-    }.get(exml.tag)
-    LOGGER.debug("parsing_class_path: {}".format(parsing_class_path))
-    result = None
-    try:
+    def _parse_remote_description(self, description, type_):
+        parsing_class_path = {
+            'urn:geoss:waf': "waf.WafParser",
+            'http://www.opengis.net/wms': "wms.WmsParser",
+            'http://www.opengis.net/wps/1.0.0': "wps.WpsParser",
+            'http://www.opengis.net/wfs': "wfs.WfsParser",
+            'http://www.opengis.net/wcs': "wcs.WcsParser",
+            'http://www.opengis.net/sos/1.0': "Sos.SosParser",
+            'http://www.opengis.net/sos/2.0': "Sos.SosParser",
+            'http://www.opengis.net/cat/csw/csdgm': "fgdc.FgdcParser",
+        }[type_]
         relative_path = ".core.metadataparsers.{}".format(parsing_class_path)
         metadata_parser = util.import_class(relative_path,
                                             importlib_package="pycsw")
-        result = metadata_parser.parse(exml)
-    except TypeError as err:
-        raise RuntimeError('Unsupported metadata format')
-    return result if isinstance(result, list) else [result]
+        result = metadata_parser.parse(description)
+        return result if isinstance(result, list) else [result]
+
+    def _parse_local_description(self, description):
+        """
+        Parse a local description.
+
+        This method will create a list of `pycsw.core.models.Record` instances
+        by parsing the input `record_description`.
+
+        :param record_description: This input is very flexible. It can be one of
+            * an already parsed ElementTree object
+            * any of the formats accepted by `etree.parse()`, which includes
+
+              * a filename/path
+              * a file object
+              * a file-like object
+              * a URL using the HTTP or FTP protocol
+        :return: a list of `pycsw.core.models.Record` instances
+        :rtype: list
+        """
+
+        if not isinstance(description, etree._ElementTree):
+            description = etree.parse(description)
+        try:
+            exml = description.getroot()  # standalone document
+        except AttributeError:  # part of a larger document
+            exml = description
+        LOGGER.debug('Serialized metadata, parsing content model')
+        ns = Context.namespaces
+        parsing_class_path = {
+            'metadata': "fgdc.FgdcParser",
+            '{{{}}}MD_Metadata'.format(ns['gmd']): "iso19139.IsoParser",
+            '{{{}}}MI_Metadata'.format(ns["gmi"]): "iso19139.IsoParser",
+            '{{{}}}Record'.format(ns["csw"]): "dublincore.DcParser",
+            '{{{}}}RDF'.format(ns["rdf"]): "dublincore.DcParser",
+            '{{{}}}DIF'.format(ns["dif"]): None,
+        }.get(exml.tag)
+        LOGGER.debug("parsing_class_path: {}".format(parsing_class_path))
+        result = None
+        try:
+            relative_path = ".core.metadataparsers.{}".format(
+                parsing_class_path)
+            metadata_parser = util.import_class(relative_path,
+                                                importlib_package="pycsw")
+            result = metadata_parser.parse(exml)
+        except TypeError as err:
+            raise RuntimeError('Unsupported metadata format')
+        return result if isinstance(result, list) else [result]
+

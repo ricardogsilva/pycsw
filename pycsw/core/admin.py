@@ -38,7 +38,8 @@ from glob import glob
 from pycsw.core import metadata, repository, util
 from pycsw.core.etree import etree
 
-from .metadataparsers.base import parse_records
+from .metadataparsers.base import MetadataParser
+from .models import Record
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,29 +57,31 @@ def new_setup_db(context, verbose=False):
 def new_load_records(context, xml_dirpath, recursive=False,
                      force_update=False, verbose=False):
     """Load metadata records from directory of files to database"""
+    parser = MetadataParser()
     file_list = _get_records_from_directory(xml_dirpath, recursive)
     total = len(file_list)
     for index, recfile in enumerate(file_list):
         LOGGER.info(
             'Processing file {} ({} of {})'.format(recfile, index+1, total))
-        try:
-            exml = etree.parse(recfile)
-            records = parse_records(exml)
-            msg = "Inserting {0.typename} {0.identifier} into database {1}, " \
-                  "table {2}..."
-            for record in records:
+        records = parser.parse_description(recfile)
+        msg = "Inserting {0.typename} {0.identifier} into database {1}, " \
+              "table {2}..."
+        for record in records:
+            try:
                 # TODO: do this as CSW Harvest
-                #LOGGER.info(msg.format(record, repository.engine.url.database, table))
+                LOGGER.info(msg.format(record,
+                                       context.repository.engine.url.database,
+                                       Record.__tablename__))
                 context.repository.insert_record(record)
-        except etree.XMLSyntaxError as err:
-            LOGGER.warn('XML document is not well-formed: {}'.format(err))
-        except RuntimeError as err:
-            if force_update:
-                LOGGER.info('Record exists. Updating.')
-                context.repository.update_record(record)
-                LOGGER.info('Updated')
-            else:
-                LOGGER.warn('ERROR: not inserted {}'.format(err))
+            except etree.XMLSyntaxError as err:
+                LOGGER.warn('XML document is not well-formed: {}'.format(err))
+            except RuntimeError as err:
+                if force_update:
+                    LOGGER.info('Record exists. Updating.')
+                    context.repository.update_record(record)
+                    LOGGER.info('Updated')
+                else:
+                    LOGGER.warn('ERROR: not inserted {}'.format(err))
 
 
 def _get_records_from_directory(path, recursive):

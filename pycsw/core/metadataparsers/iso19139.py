@@ -5,9 +5,10 @@ from owslib.iso import MD_Metadata
 
 from ..models import Record
 from .. import util
-from .base import NAMESPACES
+from ..configuration.configuration import Context
 
 LOGGER = logging.getLogger(__name__)
+
 
 class IsoParser(object):
     """
@@ -16,14 +17,21 @@ class IsoParser(object):
 
     def parse(self, xml_record):
         md = MD_Metadata(xml_record)
-        record = Record(identifier=md.identifier, typename="gmd:MD_Metadata",
-                        schema=NAMESPACES['gmd'], mdsource='local',
-                        insert_date = util.get_today_and_now(), xml=md.xml,
-                        anytext=util.get_anytext(xml_record),
-                        language=md.language, type=md.hierarchy,
-                        parentidentifier=md.parentidentifier,
-                        date=md.datestamp, date_modified=md.datestamp,
-                        source=md.dataseturi)
+        record = Record(
+            identifier=md.identifier,
+            typename="gmd:MD_Metadata",
+            schema=Context.namespaces['gmd'],
+            mdsource='local',
+            insert_date = util.get_today_and_now(),
+            xml=md.xml,
+            anytext=util.get_anytext(xml_record),
+            language=md.language,
+            type=md.hierarchy,
+            parentidentifier=md.parentidentifier,
+            date=md.datestamp,
+            date_modified=md.datestamp,
+            source=md.dataseturi
+        )
         if md.referencesystem is not None:
             record.crs = 'urn:ogc:def:crs:EPSG:6.11:{}'.format(
                 md.referencesystem.code)

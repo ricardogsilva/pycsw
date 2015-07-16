@@ -4,10 +4,13 @@ PyCSW models
 Defines the structure of the database by using SQLAlchemy Declarative
 """
 
+import logging
+
 from sqlalchemy import (Column, Integer, Text, Sequence)
 from sqlalchemy.ext.declarative import declarative_base
 
 
+LOGGER = logging.getLogger(__name__)
 Base = declarative_base()
 
 
@@ -146,7 +149,8 @@ class Record(Base):
         :type mappings: dict
         """
 
+        LOGGER.debug("remapping columns")
         for mapping_id, value in mappings.iteritems():
             for col in cls.__table__.columns:
-                if mapping_id in col.doc:
+                if mapping_id == col.doc:
                     col.name = value
