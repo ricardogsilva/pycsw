@@ -39,6 +39,8 @@ from shapely.wkt import loads
 from owslib.util import http_post
 from pycsw.core.etree import etree
 
+from ..plugins.profiles.profile import NewProfile  # TODO - change this to Profile
+
 LOGGER = logging.getLogger(__name__)
 
 #Global variables for spatial ranking algorithm
@@ -465,4 +467,23 @@ def import_class(python_path, *args, **kwargs):
         module_path, package=importlib_package)
     the_class = getattr(the_module, class_name)
     instance = the_class(*args, **kwargs)
+    return instance
+
+def import_profile_class(profile_name):
+    """
+    Import a profile class
+
+    :param profile_name:
+    :return:
+    """
+    relative_path = ".plugins.profiles.{0}.{0}".format(profile_name)
+    the_module = importlib.import_module(relative_path, package="pycsw")
+    instance = None
+    for name, obj in the_module.__dict__.iteritems():
+        if type(obj) is type:
+            is_subclass = issubclass(obj, NewProfile)
+            is_the_parent = obj is NewProfile
+            if is_subclass and not is_the_parent:
+                instance = obj()
+                break
     return instance

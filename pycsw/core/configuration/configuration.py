@@ -7,9 +7,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from ... import __version__
+from ..repositories.base import get_repository
+from .. import util
 from . import contextmodels
 from .mdcoremodel import MdCoreModel
-from ..repositories.base import get_repository
 
 
 Session = sessionmaker()
@@ -27,10 +28,11 @@ class Context(object):
     version = __version__
     ogc_schemas_base = 'http://schemas.opengis.net'
     model = None
+    profiles = []
     loglevel = logging.ERROR
     csw_models = {
-        '2.0.2': contextmodels.CswContextModel(),
-        '3.0.0': contextmodels.Csw3ContextModel(),
+        '2.0.2': contextmodels.csw_model,
+        '3.0.0': contextmodels.csw3_model,
     }
     namespaces = {
         'atom': 'http://www.w3.org/2005/Atom',
@@ -183,6 +185,15 @@ class Context(object):
         Session.configure(bind=engine)
         session = Session()
         self.repository = get_repository(engine, session)
+
+    def load_profile(self, profile_name):
+        if profile_name not in self.profiles:
+            profile = util.import_profile_class(profile_name)
+            if profile is not None:
+                profile.load_into_context(self)
+                self.profiles.append(profile.name)
+        else:
+            LOGGER.info("profile {} is already loaded".format(profile_name))
 
 
     def _parse_config_option(self, option, raw_value):

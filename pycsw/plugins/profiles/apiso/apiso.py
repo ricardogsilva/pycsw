@@ -31,14 +31,52 @@
 # =================================================================
 
 import os
+
 from pycsw.core import config, util
 from pycsw.core.etree import etree
-from pycsw.plugins.profiles import profile
+from ....core.models import Record
+from ..profile import NewProfile, Profile
+from . import coreisoqueryables
+from . import additionalqueryables
 
 CODELIST = 'http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml'
 CODESPACE = 'ISOTC211/19115'
 
-class APISO(profile.Profile):
+
+class ApIso(NewProfile):
+    name = 'apiso',
+    version = '1.0.0',
+    title = 'ISO Metadata Application Profile',
+    url = 'http://portal.opengeospatial.org/files/?artifact_id=21460',
+    typename = 'gmd:MD_Metadata',
+    prefixes = ['apiso', 'gmd'],
+    extra_namespaces = {
+        'apiso': 'http://www.opengis.net/cat/csw/apiso/1.0',
+        'gco': 'http://www.isotc211.org/2005/gco',
+        'gmd': 'http://www.isotc211.org/2005/gmd',
+        'srv': 'http://www.isotc211.org/2005/srv',
+        'xlink': 'http://www.w3.org/1999/xlink',
+        'inspire_ds': 'http://inspire.ec.europa.eu/schemas/inspire_ds/1.0',
+        'inspire_common': 'http://inspire.ec.europa.eu/schemas/common/1.0'
+    }
+    outputschema=extra_namespaces['gmd'],
+    #namespace=self.namespaces['gmd'],
+    #model=model,
+    #core_namespaces=namespaces,
+    #repository=self.repository['gmd:MD_Metadata'])
+
+    def __init__(self, context):
+        super(ApIso, self).__init__(context)
+        for queryable in coreisoqueryables.queryables:
+            self.add_queryable(queryable)
+        for queryable in additionalqueryables.queryables:
+            self.add_queryable(queryable)
+
+        #self.namespace = context.namespaces["gmd"]
+
+
+
+class APISO(Profile):
     ''' APISO class '''
     def __init__(self, model, namespaces, context):
         self.context = context
@@ -549,7 +587,7 @@ class APISO(profile.Profile):
             etree.SubElement(tmp, util.nspath_eval('gco:CharacterString', self.namespaces)).text = val
 
             # keywords
-            kw = util.getqattr(result, queryables['apiso:Subject']['dbcol'])
+            kw = util.getqattr(result, queryables['apiso:Sggubject']['dbcol'])
             if kw is not None:
                 md_keywords = etree.SubElement(resident, util.nspath_eval('gmd:descriptiveKeywords', self.namespaces))
                 md_keywords.append(write_keywords(kw, self.namespaces))

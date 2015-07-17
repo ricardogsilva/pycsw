@@ -9,8 +9,20 @@ class ContextModelOperation(object):
     name = ""
     method_get = True
     method_post = True
-    parameters = []
-    constraints = []
+    parameters = {}
+    constraints = {}
+
+    def __init__(self, name, method_get=True, method_post=True,
+                 parameters=None, constraints=None):
+        self.name = name
+        self.method_get = method_get
+        self.method_post = method_post
+        parameters = parameters or []
+        constraints = constraints or []
+        for p in parameters:
+            self.parameters[p.name] = p
+        for c in constraints:
+            self.constraints[c.name] = c
 
     def serialize(self):
         d = {
@@ -24,55 +36,49 @@ class ContextModelOperation(object):
             d["parameters"][p.name] = {"values": p.values}
 
 
-class GetCapabilitiesOperation(ContextModelOperation):
-    name = "GetCapabilities"
-    parameters = [params.sections]
+get_capabilities = ContextModelOperation(
+    "GetCapabilities",
+    parameters=[
+        params.sections
+    ],
+)
 
 
-class DescribeRecordOperation(ContextModelOperation):
-    name = "DescribeRecord"
-    parameters = [
+get_capabilities_csw3 = ContextModelOperation(
+    "GetCapabilities",
+    parameters=[
+        params.sections_csw3,
+        params.accept_versions,
+        params.accept_formats,
+    ]
+)
+
+
+describe_record = ContextModelOperation(
+    "DescribeRecord",
+    parameters=[
         params.schema_language,
         params.typename,
-        params.output_format
+        params.output_format,
     ]
+)
 
 
-class GetRecordsOperation(ContextModelOperation):
-    name = 'GetRecords'
-    parameters =[
+get_records = ContextModelOperation(
+    "GetRecords",
+    parameters=[
         params.result_type,
         params.typenames,
         params.output_schema,
         params.output_format,
         params.constraint_language,
-        params.element_set_name
+        params.element_set_name,
     ]
+)
 
-
-class GetRecordByIdOperation(ContextModelOperation):
-    name = "GetRecordById"
-    parameters = [
-        params.output_schema,
-        params.output_format,
-        params.element_set_name
-    ]
-
-
-class GetRepositoryItemOperation(ContextModelOperation):
-    name = "GetRepositoryItem"
-    method_post = False
-
-
-class GetCapabilitiesOperationCsw3(GetCapabilitiesOperation):
-    name = "GetCapabilities"
-    parameters = [params.sections_csw3, params.accept_versions,
-                  params.accept_formats]
-
-
-class GetRecordsOperationCsw3(ContextModelOperation):
-    name = 'GetRecords'
-    parameters =[
+get_records_csw3 = ContextModelOperation(
+    "GetRecords",
+    parameters=[
         params.result_type,
         params.typenames,
         params.output_schema_csw3,
@@ -80,12 +86,30 @@ class GetRecordsOperationCsw3(ContextModelOperation):
         params.constraint_language,
         params.element_set_name
     ]
+)
 
 
-class GetRecordByIdOperationCsw3(ContextModelOperation):
-    name = "GetRecordById"
-    parameters = [
+get_record_by_id = ContextModelOperation(
+    "GetRecordById",
+    parameters=[
+        params.output_schema,
+        params.output_format,
+        params.element_set_name
+    ]
+)
+
+
+get_record_by_id_csw3 = ContextModelOperation(
+    "GetRecordById",
+    parameters=[
         params.output_schema_csw3,
         params.output_format_csw3,
         params.element_set_name
     ]
+)
+
+
+get_repository_item = ContextModelOperation(
+    "GetRepositoryItem",
+    method_post=False,
+)

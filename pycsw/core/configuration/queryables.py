@@ -1,27 +1,35 @@
+from ..models import Record
+
+
 class CswQueryable(object):
     name = ""
     map_to = ""
+    xpath = ""
 
-    def __init__(self, name, map_to):
+    def __init__(self, name, map_to, xpath=""):
         self.name = name
         self.map_to = map_to
+        self.xpath = xpath
+
+    def __repr__(self):
+        return "{0}{1.__class__.__name__}({1.name!r}, {1.map_to!r})".format(
+            __name__, self)
 
 
-dc_title = CswQueryable('dc:title', 'pycsw:Title')
-dc_creator = CswQueryable('dc:creator','pycsw:Creator')
-dc_subject = CswQueryable('dc:subject', 'pycsw:Keywords')
-dct_abstract = CswQueryable('dct:abstract', 'pycsw:Abstract')
-dc_publisher = CswQueryable('dc:publisher', 'pycsw:Publisher')
-dc_contributor = CswQueryable('dc:contributor', 'pycsw:Contributor')
-dct_modified = CswQueryable('dct:modified', 'pycsw:Modified')
-dc_date = CswQueryable('dc:date', 'pycsw:Date')
-dc_type = CswQueryable('dc:type', 'pycsw:Type')
-dc_format = CswQueryable('dc:format', 'pycsw:Format')
-dc_identifier = CswQueryable('dc:identifier', 'pycsw:Identifier')
-dc_source = CswQueryable('dc:source', 'pycsw:Source')
-dc_language = CswQueryable('dc:language', 'pycsw:Language')
-dc_relation = CswQueryable('dc:relation', 'pycsw:Relation')
-dc_rights = CswQueryable('dc:rights', 'pycsw:AccessConstraints')
-ows_BoundingBox = CswQueryable('ows:BoundingBox', 'pycsw:BoundingBox')
-csw_AnyText = CswQueryable('csw:AnyText', 'pycsw:AnyText')
-
+dc_title = CswQueryable('dc:title', Record.title)
+dc_creator = CswQueryable('dc:creator',Record.creator)
+dc_subject = CswQueryable('dc:subject', Record.keywords)
+dct_abstract = CswQueryable('dct:abstract', Record.abstract)
+dc_publisher = CswQueryable('dc:publisher', Record.publisher)
+dc_contributor = CswQueryable('dc:contributor', Record.contributor)
+dct_modified = CswQueryable('dct:modified', Record.date_modified)
+dc_date = CswQueryable('dc:date', Record.date)
+dc_type = CswQueryable('dc:type', Record.type)
+dc_format = CswQueryable('dc:format', Record.format)
+dc_identifier = CswQueryable('dc:identifier', Record.identifier)
+dc_source = CswQueryable('dc:source', Record.source)
+dc_language = CswQueryable('dc:language', Record.language)
+dc_relation = CswQueryable('dc:relation', Record.relation)
+dc_rights = CswQueryable('dc:rights', Record.accessconstraints)
+ows_BoundingBox = CswQueryable('ows:BoundingBox', Record.wkt_geometry)
+csw_AnyText = CswQueryable('csw:AnyText', Record.anytext)
