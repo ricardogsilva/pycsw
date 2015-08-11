@@ -54,6 +54,7 @@ class Record(Base):
 
     __tablename__ = "records"
 
+    # internal pycsw fields
     identifier = Column(Text, Sequence("record_id_seq"), primary_key=True,
                         doc="pycsw:Identifier")
     typename = Column(Text, default='csw:Record', doc="pycsw:Typename",
@@ -66,6 +67,7 @@ class Record(Base):
     insert_date = Column(Text, nullable=False, doc="pycsw:InsertDate",
                          index=True)
     xml = Column(Text, doc="pycsw:XML", nullable=False)
+    # CSW properties (queryables and returnables)
     anytext = Column(Text, doc="pycsw:AnyText", nullable=False)
     language = Column(Text, doc="pycsw:Language", index=True)
     type = Column(Text, doc="pycsw:Type", index=True)

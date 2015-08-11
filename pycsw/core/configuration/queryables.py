@@ -9,7 +9,7 @@ class CswQueryable(object):
     def __init__(self, name, map_to, xpath=""):
         self.name = name
         self.map_to = map_to
-        self.xpath = xpath
+        self.xpath = xpath if xpath != "" else name
 
     def __repr__(self):
         return "{0}{1.__class__.__name__}({1.name!r}, {1.map_to!r})".format(

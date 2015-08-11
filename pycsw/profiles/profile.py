@@ -14,45 +14,9 @@ class Profile(object):
     elementsetnames = []
     outputformats = dict()
     outputschemas = dict()
-    mandatory_queryables = dict()
-    additional_queryables = dict()
-    mandatory_returnables = dict()
-    additional_returnables = dict()
     namespaces = dict()
-
-    def __init__(self):
-        self.add_properties()
-
-    def add_property(self, property, queryable=True, returnable=True,
-                      mandatory=True, elementsetnames=None):
-        """Add a property to the profile
-
-        :param property:
-        :param queryable:
-        :param returnable:
-        :param mandatory:
-        :return:
-        """
-        elementsetnames = elementsetnames or ["all"]
-        if queryable:
-            if mandatory:
-                self.mandatory_queryables[property.name] = property
-            else:
-                self.additional_queryables[property.name] = property
-        if returnable:
-            if mandatory:
-                self.mandatory_returnables[property.name] = (property,
-                                                             elementsetnames)
-            else:
-                self.additional_returnables[property.name] = (property,
-                                                              elementsetnames)
-
-    def add_properties(self):
-        """Add profile queryables and returnables
-
-        This method must be reimplemented in child classes
-        """
-        raise NotImplementedError
+    properties = []
+    additional_operations = []
 
     def deserialize_record(self, raw_record):
         """Convert a request into the pycsw representation
