@@ -5,7 +5,9 @@ It is implemented as a core profile.
 """
 
 from __future__ import absolute_import
+import sys
 import logging
+from traceback import format_exception_only
 
 from owslib.csw import CswRecord
 
@@ -13,13 +15,13 @@ from ..core import util
 from ..core.models import Record
 from ..core.configuration.properties import CswProperty
 from ..core.etree import etree
-from .profile import Profile
+from .base import BaseProfile
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class CommonElementSet(Profile):
+class CommonElementSet(BaseProfile):
     FULL_RECORD = "csw:Record"
     BRIEF_RECORD = "csw:BriefRecord"
     SUMMARY_RECORD = "csw:SummaryRecord"
@@ -41,6 +43,7 @@ class CommonElementSet(Profile):
         "csw": "http://www.opengis.net/cat/csw/2.0.2",
         "dc": "http://purl.org/dc/elements/1.1/",
         "dct": "http://purl.org/dc/terms/",
+        "ows": "http://www.opengis.net/ows",
     }
 
     # Properties of CSW core catalogue schema.
@@ -146,7 +149,14 @@ class CommonElementSet(Profile):
         :return:
         """
 
-        exml = etree.parse(raw_record)
+        if not isinstance(raw_record, etree._Element):
+            try:
+                # FIXME: harden this XML parsing or move it out of here
+                exml = etree.parse(raw_record)
+            except Exception:
+                raise
+        else:
+            exml = raw_record
         md = CswRecord(exml)
         record = Record(
             # fields absolutely required for pycsw to work
@@ -212,13 +222,17 @@ class CommonElementSet(Profile):
         :return:
         """
 
+        outputschema = outputschema or self.outputschemas["csw202"]
+        outputformat = outputformat or self.outputformats["xml"]
         is_record = record.typename == self.FULL_RECORD
         is_full = elementsetname == self.FULL_SET
         is_csw202 = outputschema == self.outputschemas["csw202"]
         is_service = record.type == "service"
         if is_record and is_full and is_csw202 and not is_service:
             # record.xml is already the serialized record
-            result = etree.parse(record.xml)
+            LOGGER.debug("No processing required, returning the raw record "
+                         "xml, as is saved in the repository")
+            exml = etree.parse(record.xml)
         else:
             if elementsetname is not None:
                 # get the returnables and typename
@@ -242,23 +256,29 @@ class CommonElementSet(Profile):
                 # self.outputschemas["csw300"]: self._serialize_with_csw300,
             }.get(outputschema)
             exml = schema_serializer(record, returnables, typename)
-            format_serializer = {
-                self.outputformats["xml"]: self.serialize_to_xml,
-            }.get(outputformat)
-            result = format_serializer(exml)
+        format_serializer = {
+            self.outputformats["xml"]: self.serialize_to_xml,
+        }.get(outputformat)
+        result = format_serializer(exml)
         return result
 
     def _serialize_with_csw202(self, record, returnables, typename):
-        exml = etree.Element(util.nspath_eval(typename, self.namespaces))
-        for r in returnables:
-            if r.name == "ows:BoundingBox":  # TODO: get from record.wkt_geometry
-                pass
-            elif r.name == "dc:subject":
+        exml = etree.Element(util.nspath_eval(typename, self.namespaces),
+                             nsmap=self.namespaces)
+        for returnable in returnables:
+            if returnable.name == "ows:BoundingBox":
+                try:
+                    self._write_boundingbox(record, returnable, exml)
+                except Exception as err:
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    msg = "".join(format_exception_only(exc_type, exc_value))
+                    LOGGER.warning(msg)
+            elif returnable.name == "dc:subject":
                 for keyword in record.keywords.split(","):
                     subject_element = etree.SubElement(
                         exml, util.nspath_eval("dc:subject", self.namespaces))
                     subject_element.text = keyword
-            elif r.name == "dct:references":
+            elif returnable.name == "dct:references":
                 for link in record.links.split("^"):
                     linkset = link.split(",")
                     references_element = etree.SubElement(
@@ -267,10 +287,37 @@ class CommonElementSet(Profile):
                         scheme=linkset[2])
                     references_element.text = linkset[-1]
             else:  # process the element normally
-                element = etree.SubElement(
-                    exml, util.nspath_eval(r.name, self.namespaces))
-                element.text = getattr(record, r.maps_to)
+                value = returnable.get_value(record)
+                if value is not None:
+                    element = etree.SubElement(exml, util.nspath_eval(
+                        returnable.name, self.namespaces))
+                    element.text = value
         return exml
+
+    def _write_boundingbox(self, record, returnable, exml_parent):
+        """Generate ows:BoundingBox"""
+
+        if record.wkt_geometry is not None:
+            bbox = util.wkt2geom(record.wkt_geometry)
+            if len(bbox) == 4:
+                bbox_element = etree.SubElement(
+                    exml_parent,
+                    util.nspath_eval(returnable.name, self.namespaces)
+                )
+                lower_corner_element = etree.SubElement(
+                    bbox_element,
+                    util.nspath_eval("ows:LowerCorner", self.namespaces),
+                    crs="urn:x-ogc:def:crs:EPSG:6.11:4326",
+                    dimensions="2"
+                )
+                lower_corner_element.text = "{0[1]} {0[0]}".format(bbox)
+                upper_corner_element = etree.SubElement(
+                    bbox_element,
+                    util.nspath_eval("ows:UpperCorner", self.namespaces),
+                    crs="urn:x-ogc:def:crs:EPSG:6.11:4326",
+                    dimensions="2"
+                )
+                upper_corner_element.text = "{0[3]} {0[2]}".format(bbox)
 
     @staticmethod
     def serialize_to_xml(exml):

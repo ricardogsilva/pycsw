@@ -47,6 +47,8 @@ LOGGER = logging.getLogger(__name__)
 def new_setup_db(context, verbose=False):
     """Setup the database.
 
+    Create the database tables and load some initial data.
+
     :param context:
     :type context:
     """
@@ -62,7 +64,7 @@ def new_load_records(context, xml_dirpath, recursive=False,
     total = len(file_list)
     for index, recfile in enumerate(file_list):
         LOGGER.info(
-            'Processing file {} ({} of {})'.format(recfile, index+1, total))
+            "Processing file {} ({} of {})".format(recfile, index+1, total))
         records = parser.parse_description(recfile)
         msg = "Inserting {0.typename} {0.identifier} into database {1}, " \
               "table {2}..."

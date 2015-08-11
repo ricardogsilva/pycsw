@@ -94,8 +94,11 @@ class Repository(object):
         self.session.add(record)
 
     def setup_db(self, commit=True):
-        """
-        Setup the actual database to be used by pycsw.
+        """Setup the actual database to be used by pycsw.
+
+        This method creates the database tables and populates them with
+        initial data. It should be called whenever there is a need to
+        initialize pycsw's repository.
 
         :param commit: Should the session be committed?
         :type commit: bool

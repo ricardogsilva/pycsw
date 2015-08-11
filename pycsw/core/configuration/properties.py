@@ -21,5 +21,8 @@ class CswProperty(object):
         self.typenames = typenames or []
         self.elementsetnames = elementsetnames or []
 
+    def get_value(self, record):
+        return getattr(record, self.maps_to.key)
+
     def __str__(self):
         return self.name

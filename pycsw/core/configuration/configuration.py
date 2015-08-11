@@ -73,7 +73,6 @@ class Context(object):
             "domainquerytype": "range",
             "domaincounts": True,
             "spatial_ranking": True,
-            "profiles": ["apiso",],
         },
         "manager": {
             "transactions": False,
@@ -148,11 +147,17 @@ class Context(object):
         :param version:
         :return:
         """
+
         self.model = self.csw_models[version]
-        if settings:
-            self.read_config(settings)
-        else:
-            self.update_repository("sqlite:///:memory:")
+        settings = settings or {
+            "server": {
+                "profiles": ["common"],
+            },
+            "repository": {
+                "database": "sqlite:///:memory:",
+            }
+        }
+        self.read_config(settings)
 
     def read_config(self, config):
         """
@@ -167,6 +172,7 @@ class Context(object):
         :param config:
         :return:
         """
+
         if isinstance(config, SafeConfigParser):
             self._read_config_from_config_parser(config)
         elif isinstance(config, dict):
@@ -186,18 +192,21 @@ class Context(object):
         session = Session()
         self.repository = get_repository(engine, session)
 
-    def load_profile(self, profile_name):
-        if profile_name not in self.profiles:
-            profile = util.import_profile_class(profile_name)
+    def load_profile(self, name):
+        """Load pycsw element profiles"""
+
+        if name not in [p.name for p in self.profiles]:
+            profile = util.import_profile_class(name)
             if profile is not None:
-                profile.load_into_context(self)
-                self.profiles.append(profile.name)
+                self.profiles.append(profile)
+            else:
+                LOGGER.error("Profile {0!r} could not be loaded".format(name))
         else:
-            LOGGER.info("profile {} is already loaded".format(profile_name))
+            LOGGER.info("profile {0!r} is already loaded".format(name))
 
 
     def _parse_config_option(self, option, raw_value):
-        """Parse a string option into the appropriate data type
+        """Parse an option into the appropriate data type
 
         This method is a convenience to workaround the fact that
         SafeConfigParser expects all options to be stored as strings
@@ -205,28 +214,34 @@ class Context(object):
 
         # TODO - Parse options that feature dates
         result = raw_value
-        as_list = raw_value.split(",")
-        if raw_value.lower() == "false":
-            result = False
-        elif raw_value.lower() == "true":
-            result = True
-        elif len(as_list) > 1:
-            if option not in ("identification_abstract",
-                              "identification_accessconstraints",
-                              "provider_name", "contact_name",
-                              "contact_position", "contact_address",
-                              "contact_hours", "contact_instructions"):
+        try:
+            if raw_value.lower() == "false":
+                result = False
+            elif raw_value.lower() == "true":
+                result = True
+            as_list = raw_value.split(",")
+            if len(as_list > 1) and option not in (
+                    "identification_abstract",
+                    "identification_accessconstraints",
+                    "provider_name", "contact_name",
+                    "contact_position", "contact_address",
+                    "contact_hours", "contact_instructions"
+            ):
                 result = as_list
+        except AttributeError:
+            # we are dealing with an already parsed data type that came
+            # from reading config from a dictionary instead of a configparser
+            pass
         return result
 
     def _read_config_from_config_parser(self, config):
         for section in config.sections():
             for option in config.options(section):
                 raw_value = config.get(section, option)
-                handled = self._handle_special_option(option, raw_value)
+                parsed = self._parse_config_option(option, raw_value)
+                handled = self._handle_special_option(option, parsed)
                 if not handled:
-                    value = self._parse_config_option(option, raw_value)
-                    self.settings[section][option] = value
+                    self.settings[section][option] = parsed
 
     def _read_config_from_dict(self, config_dict):
         for section, section_options in config_dict.iteritems():
@@ -245,19 +260,22 @@ class Context(object):
             config = json.load(fh)
             self._read_config_from_dict(config)
 
-    def _handle_special_option(self, option, raw_value):
+    def _handle_special_option(self, option, value):
         handled = True
         if option == "loglevel":
             try:
-                self.loglevel = getattr(logging, raw_value.upper())
+                self.loglevel = getattr(logging, value.upper())
             except AttributeError as err:
                 raise RuntimeError(err)
         if option == "database":
-            self.update_repository(raw_value)
+            self.update_repository(value)
         elif option == "table":
             pass  # TODO - Handle remapping the table name
         elif option == "mappings":
-            self.update_md_core_model(raw_value)
+            self.update_md_core_model(value)
+        elif option == "profiles":
+            for profile_name in value:
+                self.load_profile(profile_name)
         else:
             handled = False
         return handled

@@ -34,62 +34,6 @@ import os
 import warnings
 
 
-class NewProfile(object):
-    context = None
-    name = ""
-    version = ""
-    title = ""
-    url = ""
-    extra_namespaces = dict()
-    #namespace = ""
-    typename = ""
-    outputschema = ""
-    prefixes = []
-    mappings = dict()
-    queryables = dict()
-
-    update_operations = {
-        "DescribeRecord": [("typename", typename)],
-        "GetRecords": [("outputSchema", outputschema),
-                       ("typenames", typename)],
-        "GetRecordById": [("outputSchema", outputschema)],
-        "Harvest": [("ResourceType", outputschema)],
-    }
-
-    def load_into_context(self, context):
-        """Load the profile in the input context"""
-
-        # update the context's namespaces with the ones defined in the profile
-        # change the parameters of the operations defined in the context's models
-        # add the outputschema to the context
-        # add the queryables
-        context.namespaces.update(self.extra_namespaces)
-        self._update_context_operations(context)
-
-    def unload_from_context(self, context):
-        """Unload a profile from the input context"""
-        pass
-
-    def add_queryable(self, queryable):
-        self.queryables[queryable.name] = queryable
-
-    def _update_context_operations(self, context):
-        """
-        Update operation information on the input context's models
-
-        :param operation_name:
-        :param parameters:
-        :return:
-        """
-
-        for model in context.csw_models.items():
-            for op_name, parameter_pairs in self.update_operations.iteritems():
-                op = model.operations.get(op_name)
-                if op is not None:
-                    for param_name, param_value in parameter_pairs:
-                        op.parameters[param_name].values.append(param_value)
-
-
 class Profile(object):
     ''' base Profile class '''
     def __init__(self, name, version, title, url,

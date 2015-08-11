@@ -39,7 +39,7 @@ from shapely.wkt import loads
 from owslib.util import http_post
 from pycsw.core.etree import etree
 
-from ..plugins.profiles.profile import NewProfile  # TODO - change this to Profile
+from ..profiles.base import BaseProfile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -152,9 +152,17 @@ def bbox2wktpolygon(bbox):
     miny = float(tmp[1])
     maxx = float(tmp[2])
     maxy = float(tmp[3])
-    return 'POLYGON((%.2f %.2f, %.2f %.2f, %.2f %.2f, %.2f %.2f, %.2f %.2f))' \
-        % (minx, miny, minx, maxy, maxx, maxy, maxx, miny, minx, miny)
-
+    wkt = ("POLYGON(("
+           "{:.02f} {:.02f}, "
+           "{:.02f} {:.02f}, "
+           "{:.02f} {:.02f}, "
+           "{:.02f} {:.02f}, "
+           "{:.02f} {:.02f}))".format(minx, miny,
+                                      minx, maxy,
+                                      maxx, maxy,
+                                      maxx, miny,
+                                      minx, miny))
+    return wkt
 
 def query_spatial(bbox_data_wkt, bbox_input_wkt, predicate, distance):
     """perform spatial query"""
@@ -476,13 +484,13 @@ def import_profile_class(profile_name):
     :param profile_name:
     :return:
     """
-    relative_path = ".plugins.profiles.{0}.{0}".format(profile_name)
+    relative_path = ".profiles.{0}".format(profile_name)
     the_module = importlib.import_module(relative_path, package="pycsw")
     instance = None
     for name, obj in the_module.__dict__.iteritems():
         if type(obj) is type:
-            is_subclass = issubclass(obj, NewProfile)
-            is_the_parent = obj is NewProfile
+            is_subclass = issubclass(obj, BaseProfile)
+            is_the_parent = obj is BaseProfile
             if is_subclass and not is_the_parent:
                 instance = obj()
                 break

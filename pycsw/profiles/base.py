@@ -8,7 +8,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 
-class Profile(object):
+class BaseProfile(object):
     name = ""
     typenames = []
     elementsetnames = []
