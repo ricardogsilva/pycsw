@@ -22,6 +22,53 @@ LOGGER = logging.getLogger(__name__)
 
 
 class CommonElementSet(BaseProfile):
+    """
+
+    Properties of CSW core catalogue schema:
+
+    * Refer to sections 6.3.2 and 10.2.5.3 of the CSW standard for more
+      details.
+
+    * The order by which the properties are defined is important!
+      It is used when serializing to XML.
+
+    * core queryables (OGC name): Subject, Title, Abstract, AnyText, Format,
+                                  Identifier, Modified, Type, BoundingBox,
+                                  CRS(!), Association
+
+    * CRS queryable: Table 1 - 'Common queryable elements' of section 6.3.2
+      states that if not specified, the CRS shall be a geographic
+      CRS with the Greenwich prime meridian. We use WGS84.
+
+    * AnyText queryable is not returnable
+
+    * Identifier and Title are mandatory returnables. The other elements
+      are optional
+
+    * mapping of core queryables in the HTTP protocol:
+      (OGC name - XML element name - substitute term)
+
+      * Title       - dc:title        - dct:alternative
+      *             - dc:creator      -
+      * Subject     - dc:subject      -
+      * Abstract    - dct:abstract    - dc:description
+      *             - dc:publisher    -
+      *             - dc:contributor  -
+      * Modified    - dct:modified     - dc:date
+      * Type        - dc:type         -
+      * Format      - dc:format       - dct:extent
+      * Identifier  - dc:identifier   - dct:bibliographicCitation
+      * Source      - dc:source       -
+      *             - dc:language     -
+      * Association - dc:relation     - dct:conformsTo
+      * BoundingBox - ows:BoundingBox -
+      *             - dc:rights       - dct:license
+
+    * other dc elements:
+
+      * dc:coverage  - dct:spatial
+    """
+
     FULL_RECORD = "csw:Record"
     BRIEF_RECORD = "csw:BriefRecord"
     SUMMARY_RECORD = "csw:SummaryRecord"
@@ -45,12 +92,6 @@ class CommonElementSet(BaseProfile):
         "dct": "http://purl.org/dc/terms/",
         "ows": "http://www.opengis.net/ows",
     }
-
-    # Properties of CSW core catalogue schema.
-    # Refer to section 6.3.2 of the CSW standard for more details.
-    # The order by which these properties are defined is important!
-    # It is used when serializing to XML.
-    # TODO: add the remaining, optional properties
     properties = [
         CswProperty("dc:identifier", Record.identifier,
                     typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
@@ -94,47 +135,41 @@ class CommonElementSet(BaseProfile):
         CswProperty("dc:rights", Record.accessconstraints,
                     typenames=[FULL_RECORD],
                     elementsetnames=[FULL_SET]),
+        # additional queryables
         CswProperty("dc:date", Record.date,
                     typenames=[FULL_RECORD],
                     elementsetnames=[FULL_SET]),
-        # non queryables
-        CswProperty("pycsw:AlternateTitle", Record.title_alternate,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:ParentIdentifier", Record.parentidentifier,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:TempExtent_begin", Record.time_begin,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:TempExtent_end", Record.time_end,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:ResourceLanguage", Record.resourcelanguage,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:OrganizationName", Record.organization,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:AccessConstraints", Record.accessconstraints,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:OtherConstraints", Record.otherconstraints,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:CreationDate", Record.date_creation,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:PublicationDate", Record.date_publication,
-                    is_queryable=False, typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("pycsw:Modified", Record.date_modified,
-                    is_queryable=False, typenames=[FULL_RECORD],
+        CswProperty("dct:alternative", Record.title_alternate,
+                    typenames=[FULL_RECORD],
                     elementsetnames=[FULL_SET]),
         CswProperty("dct:references", Record.links,
-                    is_queryable=False, typenames=[FULL_RECORD],
+                    typenames=[FULL_RECORD],
                     elementsetnames=[FULL_SET]),
-        # additional core queryables
+        CswProperty("dct:isPartOf", Record.parentidentifier,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:temporal", Record.time_begin,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:temporal", Record.time_end,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:rightsHolder", Record.organization,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:accessRights", Record.accessconstraints,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:license", Record.otherconstraints,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:created", Record.date_creation,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        CswProperty("dct:issued", Record.date_publication,
+                    typenames=[FULL_RECORD],
+                    elementsetnames=[FULL_SET]),
+        # final core queryables, that show up last
         CswProperty("ows:BoundingBox", Record.wkt_geometry,
                     typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
                     elementsetnames=[BRIEF_SET, SUMMARY_SET, FULL_SET]),
@@ -232,7 +267,7 @@ class CommonElementSet(BaseProfile):
             # record.xml is already the serialized record
             LOGGER.debug("No processing required, returning the raw record "
                          "xml, as is saved in the repository")
-            exml = etree.parse(record.xml)
+            exml = etree.fromstring(record.xml)
         else:
             if elementsetname is not None:
                 # get the returnables and typename
@@ -269,7 +304,7 @@ class CommonElementSet(BaseProfile):
             if returnable.name == "ows:BoundingBox":
                 try:
                     self._write_boundingbox(record, returnable, exml)
-                except Exception as err:
+                except Exception:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     msg = "".join(format_exception_only(exc_type, exc_value))
                     LOGGER.warning(msg)
