@@ -51,51 +51,82 @@ from .core.configuration.configuration import Context
 LOGGER = logging.getLogger(__name__)
 
 
-class NewCsw(object):
+class CswServer(object):
 
-    def __init__(self, rtconfig=None, env=None, version="3.0.0"):
-        self.iface = {
-            "3.0.0": csw3.Csw3,
-            "2.0.2": csw2.Csw2,
-        }[version](server_csw=self)
-        self.request_version = version
-        self.environ = env or os.environ
+    namespaces = {
+        "ows": "http://www.opengis.net/ows",
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+    }
+
+    def __init__(self, rtconfig=None, env=None, version="3.0.0",
+                 configure_logging=True):
         try:
             self.context = Context(settings=rtconfig, version=version)
         except Exception as err:
-            self.response = self.iface.exceptionreport(
-                'NoApplicableCode', 'service',
-                'Error opening configuration {}'.format(rtconfig)
+            self.response = self.exception_report(
+                "NoApplicableCode", "service",
+                "Error opening configuration {}".format(rtconfig)
             )
             return
-
+        self.environ = env or os.environ
+        if configure_logging:
+            self.configure_logging()
+        # TODO - find a cleaner way to turn ranking on
+        if self.context.settings["server"]["spatial_ranking"]:
+            util.ranking_enabled = True
         # Lazy load this when needed
         # (it will permanently update global cfg namespaces)
         self.sruobj = None
         self.opensearchobj = None
         self.oaipmhobj = None
-
-        # init kvp
-        self.kvp = {}
-
-        self.mode = 'csw'
-        self.async = False
-        self.soap = False
-        self.request = None
-        self.exception = False
-        self.status = 'OK'
-        self.profiles = None
-        self.manager = False
-        self.outputschemas = {}
-        self.mimetype = 'application/xml; charset=UTF-8'
-        self.encoding = 'UTF-8'
-        self.pretty_print = 0
-        self.domainquerytype = 'list'
-        self.orm = 'django'
-        self.language = {'639_code': 'en', 'text': 'english'}
         self.process_time_start = time()
 
-        # to be continued...
+    def dispatch_cgi(self):
+        raise NotImplementedError
+
+    def dispatch_wsgi(self):
+        raise NotImplementedError
+
+    def dispatch(self):
+        raise NotImplementedError
+
+    def configure_logging(self):
+        logging.basicConfig(
+            filename=self.context.settings["server"]["logfile"],
+            level=self.context.log_level,
+            format=self.context.log_format,
+            datefmt=self.context.log_date_format
+        )
+
+    def exception_report(self, code, locator, text):
+        """Generate ExceptionReport"""
+        try:
+            language = self.context.settings["server"]["language"]
+        except KeyError:
+            language = "en-US"
+        report = etree.Element(
+            util.nspath_eval("ows:ExceptionReport", self.namespaces),
+            nsmap=self.namespaces, version='1.2.0', language=language,
+        )
+        schema_location_attribute = util.nspath_eval("xsi:schemaLocation",
+                                                     self.namespaces)
+        attribute_value = "{} {}/ows/1.0.0/owsExceptionReport.xsd".format(
+            self.namespaces['ows'],
+            self.context.ogc_schemas_base
+        )
+        report.attrib[schema_location_attribute] = attribute_value
+        exception = etree.SubElement(
+            report,
+            util.nspath_eval('ows:Exception', self.namespaces),
+            exceptionCode=code,
+            locator=locator
+        )
+        exc_text_element = etree.SubElement(
+            exception,
+            util.nspath_eval('ows:ExceptionText',self.namespaces)
+        )
+        exc_text_element.text = text
+        return report
 
 
 class Csw(object):

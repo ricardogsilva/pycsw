@@ -76,106 +76,114 @@ class CommonElementSet(BaseProfile):
     SUMMARY_SET = "summary"
     FULL_SET = "full"
 
-    # attributes that all profiles should implement
-    name = "common"
-    typenames = [FULL_RECORD, BRIEF_RECORD, SUMMARY_RECORD]
-    elementsetnames = [BRIEF_SET, SUMMARY_SET, FULL_SET]
-    outputformats = {
-        "xml": "application/xml"
-    }
-    outputschemas = {
-        "csw202": "http://www.opengis.net/cat/csw/2.0.2",
-    }
-    namespaces = {
-        "csw": "http://www.opengis.net/cat/csw/2.0.2",
-        "dc": "http://purl.org/dc/elements/1.1/",
-        "dct": "http://purl.org/dc/terms/",
-        "ows": "http://www.opengis.net/ows",
-    }
-    properties = [
-        CswProperty("dc:identifier", Record.identifier,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
-                    elementsetnames=[BRIEF_SET, SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:title", Record.title,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
-                    elementsetnames=[BRIEF_SET, SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:type", Record.type,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
-                    elementsetnames=[BRIEF_SET, SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:subject", Record.keywords,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD],
-                    elementsetnames=[SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:format", Record.format,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD],
-                    elementsetnames=[SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:relation", Record.relation,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD],
-                    elementsetnames=[SUMMARY_SET, FULL_SET]),
-        CswProperty("dct:modified", Record.date_modified,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD],
-                    elementsetnames=[SUMMARY_SET, FULL_SET]),
-        CswProperty("dct:abstract", Record.abstract,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD],
-                    elementsetnames=[SUMMARY_SET, FULL_SET]),
-        CswProperty("dc:creator", Record.creator,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dc:publisher", Record.publisher,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dc:contributor", Record.contributor,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dc:source", Record.source,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dc:language", Record.language,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dc:rights", Record.accessconstraints,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        # additional queryables
-        CswProperty("dc:date", Record.date,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:alternative", Record.title_alternate,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:references", Record.links,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:isPartOf", Record.parentidentifier,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:temporal", Record.time_begin,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:temporal", Record.time_end,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:rightsHolder", Record.organization,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:accessRights", Record.accessconstraints,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:license", Record.otherconstraints,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:created", Record.date_creation,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        CswProperty("dct:issued", Record.date_publication,
-                    typenames=[FULL_RECORD],
-                    elementsetnames=[FULL_SET]),
-        # final core queryables, that show up last
-        CswProperty("ows:BoundingBox", Record.wkt_geometry,
-                    typenames=[FULL_RECORD, SUMMARY_RECORD, BRIEF_RECORD],
-                    elementsetnames=[BRIEF_SET, SUMMARY_SET, FULL_SET]),
-        CswProperty("csw:AnyText", Record.anytext, is_returnable=False,
-                    typenames=[FULL_RECORD]),
-    ]
+    def __init__(self):
+        super(CommonElementSet, self).__init__()
+        self.name = "common"
+        self.version = "2.0.2"
+        self.typenames = [self.FULL_RECORD, self.BRIEF_RECORD,
+                          self.SUMMARY_RECORD]
+        self.elementsetnames = [self.BRIEF_SET, self.SUMMARY_SET,
+                                self.FULL_SET]
+        self.outputformats = {"xml": "application/xml"}
+        self.outputschemas = {"csw": "http://www.opengis.net/cat/csw/2.0.2"}
+        self.namespaces = self.namespaces.copy()
+        self.namespaces.update({
+            "dc": "http://purl.org/dc/elements/1.1/",
+            "dct": "http://purl.org/dc/terms/",
+            "ows": "http://www.opengis.net/ows",
+        })
+        self.properties = [
+            CswProperty("dc:identifier", Record.identifier,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD,
+                                   self.BRIEF_RECORD],
+                        elementsetnames=[self.BRIEF_SET, self.SUMMARY_SET,
+                                         self.FULL_SET]),
+            CswProperty("dc:title", Record.title,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD,
+                                   self.BRIEF_RECORD],
+                        elementsetnames=[self.BRIEF_SET, self.SUMMARY_SET,
+                                         self.FULL_SET]),
+            CswProperty("dc:type", Record.type,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD,
+                                   self.BRIEF_RECORD],
+                        elementsetnames=[self.BRIEF_SET, self.SUMMARY_SET,
+                                         self.FULL_SET]),
+            CswProperty("dc:subject", Record.keywords,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD],
+                        elementsetnames=[self.SUMMARY_SET, self.FULL_SET]),
+            CswProperty("dc:format", Record.format,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD],
+                        elementsetnames=[self.SUMMARY_SET, self.FULL_SET]),
+            CswProperty("dc:relation", Record.relation,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD],
+                        elementsetnames=[self.SUMMARY_SET, self.FULL_SET]),
+            CswProperty("dct:modified", Record.date_modified,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD],
+                        elementsetnames=[self.SUMMARY_SET, self.FULL_SET]),
+            CswProperty("dct:abstract", Record.abstract,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD],
+                        elementsetnames=[self.SUMMARY_SET, self.FULL_SET]),
+            CswProperty("dc:creator", Record.creator,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dc:publisher", Record.publisher,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dc:contributor", Record.contributor,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dc:source", Record.source,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dc:language", Record.language,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dc:rights", Record.accessconstraints,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            # additional queryables
+            CswProperty("dc:date", Record.date,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:alternative", Record.title_alternate,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:references", Record.links,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:isPartOf", Record.parentidentifier,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:temporal", Record.time_begin,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:temporal", Record.time_end,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:rightsHolder", Record.organization,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:accessRights", Record.accessconstraints,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:license", Record.otherconstraints,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:created", Record.date_creation,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            CswProperty("dct:issued", Record.date_publication,
+                        typenames=[self.FULL_RECORD],
+                        elementsetnames=[self.FULL_SET]),
+            # final core queryables, that show up last
+            CswProperty("ows:BoundingBox", Record.wkt_geometry,
+                        typenames=[self.FULL_RECORD, self.SUMMARY_RECORD,
+                                   self.BRIEF_RECORD],
+                        elementsetnames=[self.BRIEF_SET, self.SUMMARY_SET,
+                                         self.FULL_SET]),
+            CswProperty("csw:AnyText", Record.anytext, is_returnable=False,
+                        typenames=[self.FULL_RECORD]),
+        ]
 
     def deserialize_record(self, raw_record):
         """Convert a raw metadata representation to pycsw's internal format.
@@ -184,14 +192,7 @@ class CommonElementSet(BaseProfile):
         :return:
         """
 
-        if not isinstance(raw_record, etree._Element):
-            try:
-                # FIXME: harden this XML parsing or move it out of here
-                exml = etree.parse(raw_record)
-            except Exception:
-                raise
-        else:
-            exml = raw_record
+        exml = self._parse_to_element_tree(raw_record)
         md = CswRecord(exml)
         record = Record(
             # fields absolutely required for pycsw to work
@@ -239,9 +240,8 @@ class CommonElementSet(BaseProfile):
                 pass  # coordinates are corrupted
         return record
 
-    def serialize_record(self, record, outputschema=None,
-                         elementsetname=None, elementnames=None,
-                         outputformat=None):
+    def serialize_record(self, record, output_format=None, output_schema=None,
+                         element_set_name=None, element_names=None):
         """
         Render pycsw's representation of a record to the outputformat
 
@@ -250,54 +250,49 @@ class CommonElementSet(BaseProfile):
         check the record.xsd file of OGC's CSW schema for more details
 
         :param record:
-        :param outputschema:
-        :param elementsetname:
-        :param elementnames:
-        :param outputformat:
+        :param output_format:
+        :param output_schema:
+        :param element_set_name:
+        :param element_names:
         :return:
         """
 
-        outputschema = outputschema or self.outputschemas["csw202"]
-        outputformat = outputformat or self.outputformats["xml"]
+        output_schema = output_schema or self.outputschemas["csw"]
+        output_format = output_format or self.outputformats["xml"]
         is_record = record.typename == self.FULL_RECORD
-        is_full = elementsetname == self.FULL_SET
-        is_csw202 = outputschema == self.outputschemas["csw202"]
+        is_full = element_set_name == self.FULL_SET
         is_service = record.type == "service"
-        if is_record and is_full and is_csw202 and not is_service:
+        if is_record and is_full and not is_service:
             # record.xml is already the serialized record
             LOGGER.debug("No processing required, returning the raw record "
                          "xml, as is saved in the repository")
             exml = etree.fromstring(record.xml)
         else:
-            if elementsetname is not None:
+            if element_set_name is not None:
                 # get the returnables and typename
                 returnables = [p for p in self.properties if
                                p.is_returnable and
-                               elementsetname in p.elementsetnames]
+                               element_set_name in p.elementsetnames]
                 typename = {
                     self.BRIEF_SET: self.BRIEF_RECORD,
                     self.SUMMARY_SET: self.SUMMARY_RECORD,
                     self.FULL_SET: self.FULL_RECORD
-                }.get(elementsetname)
-            elif elementnames is not None:
+                }.get(element_set_name)
+            elif element_names is not None:
                 returnables = [p for p in self.properties if
-                               p.is_returnable and p.name in elementnames]
+                               p.is_returnable and p.name in element_names]
                 typename = self.FULL_RECORD
             else:
                 raise RuntimeError("Request is invalid. It does not feature "
                                    "elementsetname nor elementnames")
-            schema_serializer = {
-                self.outputschemas["csw202"]: self._serialize_with_csw202,
-                # self.outputschemas["csw300"]: self._serialize_with_csw300,
-            }.get(outputschema)
-            exml = schema_serializer(record, returnables, typename)
+            exml = self._serialize_to_csw_record(record, returnables, typename)
         format_serializer = {
             self.outputformats["xml"]: self.serialize_to_xml,
-        }.get(outputformat)
+        }.get(output_format)
         result = format_serializer(exml)
         return result
 
-    def _serialize_with_csw202(self, record, returnables, typename):
+    def _serialize_to_csw_record(self, record, returnables, typename):
         exml = etree.Element(util.nspath_eval(typename, self.namespaces),
                              nsmap=self.namespaces)
         for returnable in returnables:

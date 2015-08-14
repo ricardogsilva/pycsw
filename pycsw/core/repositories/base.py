@@ -136,7 +136,7 @@ class Repository(object):
         return [str(total), self._get_repo_filter(query).limit(
             maxrecords).offset(startposition).all()]
 
-    def query_ids(self, ids):
+    def query_ids(self, *ids):
         """Query the database with a list of identifiers
 
         :arg ids: an iterable with the identifiers to be searched
@@ -147,7 +147,8 @@ class Repository(object):
 
         query = self.session.query(Record).filter(
             Record.identifier.in_(ids))
-        return self._get_repo_filter(query)
+        filtered_query = self._get_repo_filter(query)
+        return filtered_query
 
     def query_domain(self, domain, typenames, domainquerytype='list',
                      count=False):

@@ -1,5 +1,5 @@
-#!/usr/bin/python -u
-# -*- coding: iso-8859-15 -*-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # =================================================================
 #
 # Authors: Tom Kralidis <tomkralidis@gmail.com>
@@ -31,54 +31,8 @@
 
 # CGI wrapper for pycsw
 
-import os
-import sys
-from StringIO import StringIO
-from pycsw import server
+from wsgiref.handlers import CGIHandler
+from csw_wsgi import application
 
-CONFIG = 'default.cfg'
-GZIP = False
-
-if 'PYCSW_CONFIG' in os.environ:
-    CONFIG = os.environ['PYCSW_CONFIG']
-if os.environ['QUERY_STRING'].lower().find('config') != -1:
-    for kvp in os.environ['QUERY_STRING'].split('&'):
-        if kvp.lower().find('config') != -1:
-            CONFIG = kvp.split('=')[1]
-
-if ('HTTP_ACCEPT_ENCODING' in os.environ and
-        os.environ['HTTP_ACCEPT_ENCODING'].find('gzip') != -1):
-    # set for gzip compressed response
-    GZIP = True
-
-# get runtime configuration
-CSW = server.Csw(CONFIG)
-
-# set compression level
-if CSW.config.has_option('server', 'gzip_compresslevel'):
-    GZIP_COMPRESSLEVEL = \
-        int(CSW.config.get('server', 'gzip_compresslevel'))
-else:
-    GZIP_COMPRESSLEVEL = 0
-
-# go!
-STATUS, OUTP = CSW.dispatch_cgi()
-
-sys.stdout.write("Content-Type:%s\r\n" % CSW.contenttype)
-
-if GZIP and GZIP_COMPRESSLEVEL > 0:
-    import gzip
-
-    BUF = StringIO()
-    GZIPFILE = gzip.GzipFile(mode='wb', fileobj=BUF,
-                             compresslevel=GZIP_COMPRESSLEVEL)
-    GZIPFILE.write(OUTP)
-    GZIPFILE.close()
-
-    OUTP = BUF.getvalue()
-
-    sys.stdout.write('Content-Encoding: gzip\r\n')
-
-sys.stdout.write('Content-Length: %d\r\n' % len(OUTP))
-sys.stdout.write('\r\n')
-sys.stdout.write(OUTP)
+handler = CGIHandler()
+handler.run(application)

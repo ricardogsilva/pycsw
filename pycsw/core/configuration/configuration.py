@@ -29,7 +29,11 @@ class Context(object):
     ogc_schemas_base = 'http://schemas.opengis.net'
     model = None
     profiles = []
-    loglevel = logging.ERROR
+    log_level = logging.ERROR
+    log_format = ("%(asctime)s] [%(levelname)s] file=%(pathname)s "
+                  "line=%(lineno)s module=%(module)s function=%(funcName)s "
+                  "%(message)s")
+    log_date_format = "%a, %d %b %Y %H:%M:%S"
     csw_models = {
         '2.0.2': contextmodels.csw_model,
         '3.0.0': contextmodels.csw3_model,
@@ -151,7 +155,7 @@ class Context(object):
         self.model = self.csw_models[version]
         settings = settings or {
             "server": {
-                "profiles": ["common"],
+                "profiles": ["common", "apiso_v1_0_0"],
             },
             "repository": {
                 "database": "sqlite:///:memory:",
@@ -264,7 +268,7 @@ class Context(object):
         handled = True
         if option == "loglevel":
             try:
-                self.loglevel = getattr(logging, value.upper())
+                self.log_level = getattr(logging, value.upper())
             except AttributeError as err:
                 raise RuntimeError(err)
         if option == "database":
