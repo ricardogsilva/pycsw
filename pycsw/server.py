@@ -63,10 +63,11 @@ class CswServer(object):
         try:
             self.context = Context(settings=rtconfig, version=version)
         except Exception as err:
-            self.response = self.exception_report(
-                "NoApplicableCode", "service",
-                "Error opening configuration {}".format(rtconfig)
-            )
+            # FIXME: Exception reports are not working yet
+            #self.response = self.exception_report(
+            #    "NoApplicableCode", "service",
+            #    "Error opening configuration {}".format(rtconfig)
+            #)
             return
         self.environ = env or os.environ
         if configure_logging:
@@ -81,13 +82,13 @@ class CswServer(object):
         self.oaipmhobj = None
         self.process_time_start = time()
 
-    def dispatch_cgi(self):
-        raise NotImplementedError
+    def dispatch(self, request):
+        # determine the HTTP verb (GET, POST) and get the request KVP or file
+        # parse the request and validate the general parameters (service, version, etc)
+        # delegate to the appropriate profile class (common or other)
+        return None, None, None  # status, response_headers, response_body
 
-    def dispatch_wsgi(self):
-        raise NotImplementedError
-
-    def dispatch(self):
+    def acknowlege_request(self):
         raise NotImplementedError
 
     def configure_logging(self):
@@ -102,7 +103,7 @@ class CswServer(object):
         """Generate ExceptionReport"""
         try:
             language = self.context.settings["server"]["language"]
-        except KeyError:
+        except AttributeError, KeyError:
             language = "en-US"
         report = etree.Element(
             util.nspath_eval("ows:ExceptionReport", self.namespaces),
