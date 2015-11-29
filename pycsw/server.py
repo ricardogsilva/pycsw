@@ -38,6 +38,8 @@ import urlparse
 from cStringIO import StringIO
 from ConfigParser import SafeConfigParser
 import logging
+import json
+import codecs
 
 from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
@@ -47,6 +49,106 @@ from pycsw.core import config, log, util
 from pycsw.ogc.csw import csw2, csw3
 
 LOGGER = logging.getLogger(__name__)
+
+
+class PycswServer(object):
+    VERSION_2_0_2 = "2.0.2"
+    VERSION_3_0_0 = "3.0.0"
+
+    accept_versions = [VERSION_2_0_2, VERSION_3_0_0]
+    version = VERSION_3_0_0
+    csw_root_path = "/var/www/pycsw"
+    server_url = "http://localhost/pycsw/csw.py"
+    encoding = "UTF-8"
+    mimetype = "application/xml; charset={}".format(self.encoding)
+    language = "en-US"
+    max_records = "10"
+    log_level = logging.DEBUG
+    logfile = "/tmp/pycsw.log"
+    ogc_schemas_base = "http://foo"
+    federated_catalogues = "http://catalog.data.gov/csw"
+    pretty_print = True
+    gzip_compress_level = 8
+    domain_query_type = "range"
+    domain_counts = True
+    spatial_ranking = True
+    profiles = ["apiso"]
+    transactions_enabled = False
+    allowed_ips = ["127.0.0.1"]
+    csw_harvest_pagesize = 10
+    metadata = {
+        "title": "pycsw Geospatial Catalogue",
+        "abstract": ("pycsw is an OGC CSW server implementation written "
+                     "in Python"),
+        "keywords": "catalogue", "discovery", "metadata"],
+        "keywords_type": "theme",
+        "fees": "",
+        "accessconstraints": "",
+        "provider_name": "Organization Name",
+        "provider_url": "http://pycsw.org/",
+        "contact": {
+            "name": "Lastname, Firstname",
+            "position": "Position Title",
+            "address": "Mailing Address",
+            "city": "City",
+            "stateorprovince": "Administrative Area",
+            "postalcode": "Zip or Postal Code",
+            "country": "Country",
+            "phone": "+xx-xxx-xxx-xxxx",
+            "fax": "+xx-xxx-xxx-xxxx",
+            "email": "Email Address",
+            "url": "Contact URL",
+            "hours": "Hours of Service",
+            "instructions": "During hours of service.  Off on weekends.",
+            "role": "pointOfContact",
+        }
+    }
+    # instead of saving these variables, could instantiate the repository 
+    # directly
+    database_uri = "sqlite:////var/www/pycsw/tests/suites/cite/data/cite.db"
+    #database_uri = postgresql://username:password@localhost/pycsw
+    #database_uri = mysql://username:password@localhost/pycsw?charset=utf8
+    #mappings_uri = path/to/mappings.py
+    database_table = "records"
+    #filter=type = 'http://purl.org/dc/dcmitype/Dataset'
+
+    inspire_settings = {
+        "enabled": True,
+        "languages_supported": ["eng", "gre"],
+        "default_language": "eng",
+        "date": "YYYY-MM-DD",
+        "gemet_keywords": ["Utility and governmental services"],
+        "conformity_service": "notEvaluated",
+        "contact_name": "Organization Name",
+        "contact_email": "Email Address",
+        "temp_extent": ["YYYY-MM-DD", "YYYY-MM-DD"]
+    }
+
+    def __init__(self, env=None, rtconfig=None, **kwargs):
+        self.environ = env or os.environ
+        self.context = config.StaticContext()
+        self._load_configuration(rtconfig, **kwargs)
+
+    def _load_configuration(self, runtime_settings=None, **kwargs):
+        if isinstance(runtime_settings, basestring):
+            self._load_configuration_from_file(runtime_settings)
+        else:
+            pass  # try to load from a dict, an object and a SafeConfigParser
+        for option, value in kwargs.items():
+            setattr(self, option, value)
+
+    def _load_configuration_from_file(self, path):
+        try:
+            with codecs.open(path, self.encoding) as fh:
+                try:
+                    config_dict = json.load(fh)
+                except Exception:  # FIXME - replace with a proper exception
+                    try:
+                        config_parser = ConfigParser.SafeConfigParser()
+                        config_parser.readfp(fh)
+                        # now parse the options
+        except IOError:
+            pass  # could not open the path
 
 
 class Csw(object):
