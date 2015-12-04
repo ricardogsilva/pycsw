@@ -36,7 +36,7 @@ from time import time
 from urllib2 import quote, unquote
 import urlparse
 from cStringIO import StringIO
-from ConfigParser import SafeConfigParser
+import ConfigParser
 import logging
 import json
 import codecs
@@ -48,6 +48,8 @@ import pycsw.plugins.outputschemas
 from pycsw.core import config, log, util
 from pycsw.ogc.csw import csw2, csw3
 
+from pycsw.core.option import pycsw_options
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -57,98 +59,170 @@ class PycswServer(object):
 
     accept_versions = [VERSION_2_0_2, VERSION_3_0_0]
     version = VERSION_3_0_0
-    csw_root_path = "/var/www/pycsw"
-    server_url = "http://localhost/pycsw/csw.py"
-    encoding = "UTF-8"
-    mimetype = "application/xml; charset={}".format(self.encoding)
-    language = "en-US"
-    max_records = "10"
-    log_level = logging.DEBUG
-    logfile = "/tmp/pycsw.log"
-    ogc_schemas_base = "http://foo"
-    federated_catalogues = "http://catalog.data.gov/csw"
-    pretty_print = True
-    gzip_compress_level = 8
-    domain_query_type = "range"
-    domain_counts = True
-    spatial_ranking = True
-    profiles = ["apiso"]
-    transactions_enabled = False
-    allowed_ips = ["127.0.0.1"]
-    csw_harvest_pagesize = 10
-    metadata = {
-        "title": "pycsw Geospatial Catalogue",
-        "abstract": ("pycsw is an OGC CSW server implementation written "
-                     "in Python"),
-        "keywords": "catalogue", "discovery", "metadata"],
-        "keywords_type": "theme",
-        "fees": "",
-        "accessconstraints": "",
-        "provider_name": "Organization Name",
-        "provider_url": "http://pycsw.org/",
-        "contact": {
-            "name": "Lastname, Firstname",
-            "position": "Position Title",
-            "address": "Mailing Address",
-            "city": "City",
-            "stateorprovince": "Administrative Area",
-            "postalcode": "Zip or Postal Code",
-            "country": "Country",
-            "phone": "+xx-xxx-xxx-xxxx",
-            "fax": "+xx-xxx-xxx-xxxx",
-            "email": "Email Address",
-            "url": "Contact URL",
-            "hours": "Hours of Service",
-            "instructions": "During hours of service.  Off on weekends.",
-            "role": "pointOfContact",
-        }
-    }
-    # instead of saving these variables, could instantiate the repository 
-    # directly
-    database_uri = "sqlite:////var/www/pycsw/tests/suites/cite/data/cite.db"
-    #database_uri = postgresql://username:password@localhost/pycsw
-    #database_uri = mysql://username:password@localhost/pycsw?charset=utf8
-    #mappings_uri = path/to/mappings.py
-    database_table = "records"
-    #filter=type = 'http://purl.org/dc/dcmitype/Dataset'
-
-    inspire_settings = {
-        "enabled": True,
-        "languages_supported": ["eng", "gre"],
-        "default_language": "eng",
-        "date": "YYYY-MM-DD",
-        "gemet_keywords": ["Utility and governmental services"],
-        "conformity_service": "notEvaluated",
-        "contact_name": "Organization Name",
-        "contact_email": "Email Address",
-        "temp_extent": ["YYYY-MM-DD", "YYYY-MM-DD"]
-    }
+    repository = None
 
     def __init__(self, env=None, rtconfig=None, **kwargs):
+        """Pycsw server
+
+        :param env:
+        :type env: dict
+        :param rtconfig:
+        :type rtconfig:
+        :param kwargs:
+        :return:
+        :raises:
+        """
+
         self.environ = env or os.environ
         self.context = config.StaticContext()
-        self._load_configuration(rtconfig, **kwargs)
+        self.load_configuration(rtconfig, **kwargs)
 
-    def _load_configuration(self, runtime_settings=None, **kwargs):
-        if isinstance(runtime_settings, basestring):
-            self._load_configuration_from_file(runtime_settings)
-        else:
-            pass  # try to load from a dict, an object and a SafeConfigParser
-        for option, value in kwargs.items():
-            setattr(self, option, value)
+    def dispatch(self, request):
+        # extract request parameters
+        # validate the request content
+        # dispatch according to the requested mode and operation
+        pass
 
-    def _load_configuration_from_file(self, path):
+    def get_configuration_from_config_parser(self, configuration):
+        options_dict = {(opt.section, opt.config_parser_name): opt for
+                        opt in pycsw_options}
+        to_load = []
+        for section in configuration.sections():
+            for name in configuration.options(section):
+                try:
+                    pycsw_option = options_dict[(section, name)]
+                    name = pycsw_option.name
+                    parsed_value = pycsw_option.from_config_parser(
+                        configuration)
+                except KeyError:
+                    raise RuntimeError(
+                        "Invalid option: {}:{}".format(section, name))
+                to_load.append((name, parsed_value))
+        return to_load
+
+    def get_configuration_from_dict(self, configuration):
+        # this is just a convenience conversion to make searching for options
+        # faster. It is a small nuissance but nicer to the users:
+        # pycsw_options can be a list (and easier to define) rather than
+        # a dict
+        options_dict = {opt.name: opt for opt in pycsw_options}
+        to_load = []
+        for key, value in configuration.items():
+            try:
+                pycsw_option = options_dict[key]
+                name = pycsw_option.name
+                parsed_value = pycsw_option.from_dict(configuration)
+            except KeyError:  # this is some custom option
+                name = key
+                parsed_value = value
+            to_load.append((name, parsed_value))
+        return to_load
+
+    def get_configuration_from_file(self, path):
+        parsed = None
         try:
             with codecs.open(path, self.encoding) as fh:
                 try:
                     config_dict = json.load(fh)
-                except Exception:  # FIXME - replace with a proper exception
+                    parsed = self.get_configuration_from_dict(config_dict)
+                except Exception:  # FIXME - replace with proper exception
                     try:
                         config_parser = ConfigParser.SafeConfigParser()
                         config_parser.readfp(fh)
-                        # now parse the options
+                        parsed = self.get_configuration_from_config_parser(
+                            config_parser)
+                    except Exception:  # FIXME - replace with proper exception
+                        raise RuntimeError(
+                            "Unable to load configuration file")
         except IOError:
-            pass  # could not open the path
+            raise RuntimeError("Unable to open configuration file")
+        return parsed
+
+    def get_repository(self, source="", database="", mappings="",
+                       table="", filter_=""):
+        self.load_mappings(mappings)
+        repo_parameters = {
+            "geonode": {
+                "path": ("pycsw.plugins.repository.geonode.geonode_",
+                         "GeoNodeRepository"),
+                "args": (self.context, filter_),
+            },
+            "odc": {
+                "path": ("pycsw.plugins.repository.odc",
+                         "OpenDataCatalogRepository"),
+                "args": (self.context, filter_),
+            },
+            "pycsw": {
+                "path": ("pycsw.core.repository", "Repository"),
+                "args": (database, self.context,
+                         self.environ.get("local.app_root", None),
+                         table,
+                         filter_),
+                "orm": "sqlalchemy",
+            }
+            ,
+        }.get(source)
+        repo_class = self._lazy_import_dependency(*repo_parameters["path"])
+        orm = repo_parameters.get("orm")
+        try:
+            repository = repo_class(*repo_parameters["args"])
+            LOGGER.debug("Repository loaded ({})".format(source))
+        except Exception as err:
+            raise Exception(
+                "NoApplicableCode",
+                "service",
+                "Could not load repository ({}): {}".format(source, err)
+            )
+        return repository, orm
+
+
+    def load_configuration(self, runtime_settings=None, **kwargs):
+        """Load pycsw configuration from multiple input sources
+
+        :param runtime_settings:
+        :param kwargs:
+        :return:
+        """
+        if isinstance(runtime_settings, basestring):
+            config = self.get_configuration_from_file(runtime_settings)
+        elif isinstance(runtime_settings, ConfigParser.SafeConfigParser):
+            config = self.get_configuration_from_config_parser(
+                runtime_settings)
+        elif runtime_settings is not None:
+            config = self.get_configuration_from_dict(runtime_settings)
+        else:
+            config = [(opt.name, opt.default) for opt in pycsw_options]
+        extra_config = [(name, value) for name, value in kwargs.items()]
+        all_config = config + extra_config
+        repo_options = [(name, value) for name, value in all_config if
+                        name in ("database", "mappings", "table", "filter")]
+        repository, orm = self.get_repository(
+            **{name: value for name, value in repo_options})
+        self.repository = repository
+        self.orm = orm
+        for name, value in all_config:
+            setattr(self, name, value)
+
+    def load_mappings(self, mappings):
+        try:
+            imp = self._lazy_import_dependency("imp")
+            path, ext = os.path.splitext(mappings)
+            python_path = path.replace(os.sep, ".")
+            LOGGER.debug("Loading custom repository mappings "
+                         "from {}.".format(python_path))
+            read_mappings = imp.load_source(python_path, mappings)
+            self.context.md_core_model = read_mappings.MD_CORE_MODEL
+            self.context.refresh_dc(read_mappings.MD_CORE_MODEL)
+        except Exception as err:  # FIXME: replace with proper exception
+            raise Exception(
+                "NoApplicableCode",
+                "service",
+                "Could not load repository mappings: {}".format(err)
+            )  # FIXME: replace with proper exception
+
+    # FIXME: move this method to utilities module
+    def _lazy_import_dependency(self, python_path, type_=None):
+        return None
 
 
 class Csw(object):
@@ -199,10 +273,10 @@ class Csw(object):
 
         # load user configuration
         try:
-            if isinstance(rtconfig, SafeConfigParser):  # serialized already
+            if isinstance(rtconfig, ConfigParser.SafeConfigParser):  # serialized already
                 self.config = rtconfig
             else:
-                self.config = SafeConfigParser()
+                self.config = ConfigParser.SafeConfigParser()
                 if isinstance(rtconfig, dict):  # dictionary
                     for section, options in rtconfig.items():
                         self.config.add_section(section)
