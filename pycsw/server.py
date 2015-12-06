@@ -40,6 +40,7 @@ import ConfigParser
 import logging
 import json
 import codecs
+import importlib
 
 from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
@@ -49,6 +50,7 @@ from pycsw.core import config, log, util
 from pycsw.ogc.csw import csw2, csw3
 
 from pycsw.core.option import pycsw_options
+from pycsw.core.request import PycswHttpRequest
 
 LOGGER = logging.getLogger(__name__)
 
@@ -58,10 +60,9 @@ class PycswServer(object):
     VERSION_3_0_0 = "3.0.0"
 
     accept_versions = [VERSION_2_0_2, VERSION_3_0_0]
-    version = VERSION_3_0_0
     repository = None
 
-    def __init__(self, env=None, rtconfig=None, **kwargs):
+    def __init__(self, rtconfig=None, **kwargs):
         """Pycsw server
 
         :param env:
@@ -73,20 +74,81 @@ class PycswServer(object):
         :raises:
         """
 
-        self.environ = env or os.environ
         self.context = config.StaticContext()
         self.load_configuration(rtconfig, **kwargs)
 
     def dispatch(self, request):
-        # extract request parameters
-        # validate the request content
-        # dispatch according to the requested mode and operation
-        pass
+        """Dispatch an incoming request for processing
+
+        This is the main interaction point for client code.
+
+        :arg request:
+        :type request: PycswHttpRequest
+        :return:
+        :raise:
+        """
+
+        requested_mode = request.GET("mode", request.POST("mode", "csw"))
+        dispatch_method = {
+            "csw": self.dispatch_csw,
+            "sru": self.dispatch_sru,
+            "oaipmh": self.dispatch_oaipmh,
+            "opensearch": self.dispatch_opensearch,
+        }.get(requested_mode)
+        return dispatch_method(request)
+
+    def dispatch_csw(self, request):
+        """Dispatch the input CSW request for processing
+
+        :param request:
+        :type request:
+        :return:
+        :raise:
+        """
+
+        requested_version = self._get_requested_csw_version(request)
+        try:
+            csw_version_class_info = {
+                self.VERSION_2_0_2: ("pycsw.core.", "Csw202"),
+                self.VERSION_3_0_0: ("pycsw.core.", "Csw300"),
+            }[requested_version]
+        except KeyError:
+            raise Exception  # FIXME: raise a proper pycsw exception
+        csw_version_class = self._lazy_import_dependency(
+            *csw_version_class_info)
+        instance = csw_version_class(self)
+        return instance.dispatch(request)
+
+    def dispatch_sru(self, request):
+        """Dispatch the input SRU request for processing
+
+        :param request:
+        :type request:
+        :return:
+        :raise:
+        """
+        sru_wrapper_class = self._lazy_import_dependency("pycsw.sru", "Sru")
+        sru = sru_wrapper_class(self.context)
+        query_dict = request.GET.copy()
+        query_dict.update(request.POST)
+        new_query_dict = sru.request_sru2csw(query_dict)
+        new_request = PycswHttpRequest(**request.META)
+        new_request.GET = new_query_dict
+        new_request.POST = {}
+        csw_result = self.dispatch_csw(new_request)
+        sru.response_csw2sru()
+        raise NotImplementedError
+
+    def dispatch_oaipmh(self, request):
+        raise NotImplementedError
+
+    def dispatch_opensearch(self, request):
+        raise NotImplementedError
 
     def get_configuration_from_config_parser(self, configuration):
         options_dict = {(opt.section, opt.config_parser_name): opt for
                         opt in pycsw_options}
-        to_load = []
+        to_load = {}
         for section in configuration.sections():
             for name in configuration.options(section):
                 try:
@@ -97,7 +159,7 @@ class PycswServer(object):
                 except KeyError:
                     raise RuntimeError(
                         "Invalid option: {}:{}".format(section, name))
-                to_load.append((name, parsed_value))
+                to_load[name] = parsed_value
         return to_load
 
     def get_configuration_from_dict(self, configuration):
@@ -106,7 +168,7 @@ class PycswServer(object):
         # pycsw_options can be a list (and easier to define) rather than
         # a dict
         options_dict = {opt.name: opt for opt in pycsw_options}
-        to_load = []
+        to_load = {}
         for key, value in configuration.items():
             try:
                 pycsw_option = options_dict[key]
@@ -115,7 +177,7 @@ class PycswServer(object):
             except KeyError:  # this is some custom option
                 name = key
                 parsed_value = value
-            to_load.append((name, parsed_value))
+            to_load[name] = parsed_value
         return to_load
 
     def get_configuration_from_file(self, path):
@@ -138,9 +200,8 @@ class PycswServer(object):
             raise RuntimeError("Unable to open configuration file")
         return parsed
 
-    def get_repository(self, source="", database="", mappings="",
+    def get_repository(self, source="pycsw", database="", mappings="",
                        table="", filter_=""):
-        self.load_mappings(mappings)
         repo_parameters = {
             "geonode": {
                 "path": ("pycsw.plugins.repository.geonode.geonode_",
@@ -175,7 +236,6 @@ class PycswServer(object):
             )
         return repository, orm
 
-
     def load_configuration(self, runtime_settings=None, **kwargs):
         """Load pycsw configuration from multiple input sources
 
@@ -191,17 +251,21 @@ class PycswServer(object):
         elif runtime_settings is not None:
             config = self.get_configuration_from_dict(runtime_settings)
         else:
-            config = [(opt.name, opt.default) for opt in pycsw_options]
-        extra_config = [(name, value) for name, value in kwargs.items()]
-        all_config = config + extra_config
-        repo_options = [(name, value) for name, value in all_config if
-                        name in ("database", "mappings", "table", "filter")]
-        repository, orm = self.get_repository(
-            **{name: value for name, value in repo_options})
-        self.repository = repository
-        self.orm = orm
-        for name, value in all_config:
+            config = {opt.name: opt.default for opt in pycsw_options}
+        LOGGER.debug("config: {}".format(config))
+        config.update(kwargs)
+        for name, value in config.items():
             setattr(self, name, value)
+        # FIXME - re-enable loading the repository
+        #repository, orm = self.get_repository(
+        #    source=config.get("source", "pycsw"),
+        #    database=config["database"],
+        #    mappings=config["mappings"],
+        #    table=config["table"],
+        #    filter_=config["filter"]
+        #)
+        #self.repository = repository
+        #self.orm = orm
 
     def load_mappings(self, mappings):
         try:
@@ -213,16 +277,39 @@ class PycswServer(object):
             read_mappings = imp.load_source(python_path, mappings)
             self.context.md_core_model = read_mappings.MD_CORE_MODEL
             self.context.refresh_dc(read_mappings.MD_CORE_MODEL)
-        except Exception as err:  # FIXME: replace with proper exception
-            raise Exception(
+        except IOError as err:
+            raise Exception(  # FIXME: replace with proper pycsw exception
                 "NoApplicableCode",
                 "service",
                 "Could not load repository mappings: {}".format(err)
-            )  # FIXME: replace with proper exception
+            )
+
+    def reconfigure_logging(self):
+        """Reconfigure the root logger"""
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        logging.basicConfig(level=self.log_level, filename=self.log_file)
+
+    def _get_requested_csw_version(self, request):
+        version = request.GET.get("version", request.POST.get("version"))
+        if version is None:  # get the version from the body of the request
+            re_module = self._lazy_import_dependency("re")
+            try:
+                version = re_module.search(r'version="(\d\.\d\.\d)"',
+                                           request.body).group(1)
+            except AttributeError:
+                raise   # FIXME: replace with proper pycsw exception
+        return version
 
     # FIXME: move this method to utilities module
-    def _lazy_import_dependency(self, python_path, type_=None):
-        return None
+    @staticmethod
+    def _lazy_import_dependency(python_path, type_=None):
+        the_module = importlib.import_module(python_path)
+        result = the_module
+        if type_ is not None:
+            the_class = getattr(the_module, type_)
+            result = the_class
+        return result
 
 
 class Csw(object):

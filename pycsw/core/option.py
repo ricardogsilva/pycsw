@@ -91,7 +91,6 @@ class LoggingOption(PycswOption):
 
 
 pycsw_options = [
-    StringOption("version", default="3.0.0", section="server"),
     StringOption("csw_root_path", default="/var/www/pycsw", section="server"),
     StringOption("server_url", default="http://localhost/pycsw/csw.py",
                 section="server"),

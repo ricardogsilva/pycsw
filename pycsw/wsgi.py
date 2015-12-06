@@ -56,14 +56,37 @@ from StringIO import StringIO
 import os
 import sys
 import urlparse
+import logging
 
 from pycsw import server
+from pycsw.core.request import PycswHttpRequest
 
-
+LOGGER = logging.getLogger(__name__)
 PYCSW_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def application(env, start_response):
+def application(environ, start_response):
+    request = PycswHttpRequest(**environ)
+    config = request.META.get(
+        "HTTP_PYCSW_CONFIG",
+        environ.get("PYCSW_CONFIG", None)
+    )
+    # instantiate server and reconfigure logging
+    pycsw_server = server.PycswServer(rtconfig=config)
+    pycsw_server.reconfigure_logging()
+
+    #response, http_code, response_headers  = instance.dispatch(request)
+    #response_string = "\n".join((http_code, response_headers, response))
+    #return [response_string]
+    LOGGER.debug("config: {}".format(config))
+    LOGGER.info("this is an info message")
+    LOGGER.warning("request: {}".format(request))
+
+    start_response("200 OK", [])
+    return [str(environ)]
+
+
+def old_application(env, start_response):
     """WSGI wrapper"""
     config = 'default.cfg'
 
@@ -123,6 +146,7 @@ def application(env, start_response):
     return [contents]
 
 if __name__ == '__main__':  # run inline using WSGI reference implementation
+    logging.basicConfig(level=logging.DEBUG)
     from wsgiref.simple_server import make_server
     port = 8000
     if len(sys.argv) > 1:
