@@ -33,28 +33,26 @@
 import os
 import sys
 import cgi
+import logging
 from urllib2 import quote, unquote
 import urlparse
 from cStringIO import StringIO
 from ConfigParser import SafeConfigParser
+
 from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
 from pycsw.plugins.profiles import profile as pprofile
 import pycsw.plugins.outputschemas
 from pycsw.core import config, log, metadata, util
 from pycsw.ogc.fes import fes1
-import logging
+from .base import CswInterface
 
 LOGGER = logging.getLogger(__name__)
 
 
-class Csw2(object):
+class Csw2(CswInterface):
     ''' CSW 2.x server '''
-    def __init__(self, server_csw):
-        ''' Initialize CSW2 '''
-
-        self.parent = server_csw
-        self.version = '2.0.2'
+    version = util.CSW_VERSION_2_0_2
 
     def getcapabilities(self):
         ''' Handle GetCapabilities request '''

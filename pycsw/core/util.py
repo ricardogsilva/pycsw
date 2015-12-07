@@ -34,8 +34,11 @@ import time
 import datetime
 import logging
 import urllib2
+import importlib
+
 from shapely.wkt import loads
 from owslib.util import http_post
+
 from pycsw.core.etree import etree
 
 LOGGER = logging.getLogger(__name__)
@@ -45,6 +48,14 @@ ranking_enabled = False
 ranking_pass = False
 ranking_query_geometry = ''
 
+HTTP_GET = "GET"
+HTTP_POST = "POST"
+CSW_SERVICE = "CSW"
+CSW_VERSION_2_0_2 = "2.0.2"
+CSW_VERSION_3_0_0 = "3.0.0"
+CSW_OPERATION_GET_CAPABILITIES = "GetCapabilities"
+CSW_OPERATION_GET_RECORDS = "GetRecords"
+CSW_OPERATION_DESCRIBE_RECORD = "DescribeRecord"
 
 PARSER = etree.XMLParser(resolve_entities=False)
 
@@ -440,3 +451,11 @@ def validate_4326(bbox_list):
         is_valid = True
 
     return is_valid
+
+def lazy_import_dependency(python_path, type_=None):
+    the_module = importlib.import_module(python_path)
+    result = the_module
+    if type_ is not None:
+        the_class = getattr(the_module, type_)
+        result = the_class
+    return result

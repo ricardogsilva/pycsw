@@ -51,15 +51,16 @@ from pycsw.ogc.csw import csw2, csw3
 
 from pycsw.core.option import pycsw_options
 from pycsw.core.request import PycswHttpRequest
+from pycsw.exceptions import PycswError
 
 LOGGER = logging.getLogger(__name__)
 
 
 class PycswServer(object):
-    VERSION_2_0_2 = "2.0.2"
-    VERSION_3_0_0 = "3.0.0"
 
-    accept_versions = [VERSION_2_0_2, VERSION_3_0_0]
+    accept_versions = [util.CSW_VERSION_2_0_2, util.CSW_VERSION_3_0_0]
+    # defaulting to 2.0.2 while 3.0.0 is not out
+    csw_version = util.CSW_VERSION_2_0_2
     repository = None
 
     def __init__(self, rtconfig=None, **kwargs):
@@ -88,7 +89,8 @@ class PycswServer(object):
         :raise:
         """
 
-        requested_mode = request.GET("mode", request.POST("mode", "csw"))
+        requested_mode = request.GET.get("mode",
+                                         request.POST.get("mode", "csw"))
         dispatch_method = {
             "csw": self.dispatch_csw,
             "sru": self.dispatch_sru,
@@ -106,15 +108,20 @@ class PycswServer(object):
         :raise:
         """
 
+        requested_service = self._get_requested_service(request)
+        if requested_service != util.CSW_SERVICE:
+            # FIXME - look up the proper exception values
+            raise PycswError(self, None, None, None)
         requested_version = self._get_requested_csw_version(request)
         try:
             csw_version_class_info = {
-                self.VERSION_2_0_2: ("pycsw.core.", "Csw202"),
-                self.VERSION_3_0_0: ("pycsw.core.", "Csw300"),
+                util.CSW_VERSION_2_0_2: ("pycsw.ogc.csw2", "Csw2"),
+                util.CSW_VERSION_3_0_0: ("pycsw.ogc.csw3", "Csw3"),
             }[requested_version]
         except KeyError:
-            raise Exception  # FIXME: raise a proper pycsw exception
-        csw_version_class = self._lazy_import_dependency(
+            # FIXME: look up the proper code, location and text
+            raise PycswError(self, None, None, None)
+        csw_version_class = util.lazy_import_dependency(
             *csw_version_class_info)
         instance = csw_version_class(self)
         return instance.dispatch(request)
@@ -127,7 +134,7 @@ class PycswServer(object):
         :return:
         :raise:
         """
-        sru_wrapper_class = self._lazy_import_dependency("pycsw.sru", "Sru")
+        sru_wrapper_class = util.lazy_import_dependency("pycsw.sru", "Sru")
         sru = sru_wrapper_class(self.context)
         query_dict = request.GET.copy()
         query_dict.update(request.POST)
@@ -202,6 +209,7 @@ class PycswServer(object):
 
     def get_repository(self, source="pycsw", database="", mappings="",
                        table="", filter_=""):
+        self.load_mappings(mappings)
         repo_parameters = {
             "geonode": {
                 "path": ("pycsw.plugins.repository.geonode.geonode_",
@@ -215,15 +223,13 @@ class PycswServer(object):
             },
             "pycsw": {
                 "path": ("pycsw.core.repository", "Repository"),
-                "args": (database, self.context,
-                         self.environ.get("local.app_root", None),
-                         table,
-                         filter_),
+                "args": (database, self.context, None,
+                         table, filter_),
                 "orm": "sqlalchemy",
             }
             ,
         }.get(source)
-        repo_class = self._lazy_import_dependency(*repo_parameters["path"])
+        repo_class = util.lazy_import_dependency(*repo_parameters["path"])
         orm = repo_parameters.get("orm")
         try:
             repository = repo_class(*repo_parameters["args"])
@@ -256,33 +262,32 @@ class PycswServer(object):
         config.update(kwargs)
         for name, value in config.items():
             setattr(self, name, value)
-        # FIXME - re-enable loading the repository
-        #repository, orm = self.get_repository(
-        #    source=config.get("source", "pycsw"),
-        #    database=config["database"],
-        #    mappings=config["mappings"],
-        #    table=config["table"],
-        #    filter_=config["filter"]
-        #)
-        #self.repository = repository
-        #self.orm = orm
+        repository, orm = self.get_repository(
+            source=config.get("source", "pycsw"),
+            database=config["database"],
+            mappings=config["mappings"],
+            table=config["table"],
+            filter_=config["filter"]
+        )
+        self.repository = repository
+        self.orm = orm
 
-    def load_mappings(self, mappings):
+    def load_mappings(self, mappings_path):
+        if os.sep in mappings_path:  # its a filesystem path
+            module_path = os.path.splitext(mappings_path)[0].replace(
+                os.sep, ".")
+        else:  # its a python path
+            module_path = mappings_path
+        LOGGER.debug("Loading custom repository mappings "
+                     "from {}.".format(module_path))
         try:
-            imp = self._lazy_import_dependency("imp")
-            path, ext = os.path.splitext(mappings)
-            python_path = path.replace(os.sep, ".")
-            LOGGER.debug("Loading custom repository mappings "
-                         "from {}.".format(python_path))
-            read_mappings = imp.load_source(python_path, mappings)
-            self.context.md_core_model = read_mappings.MD_CORE_MODEL
-            self.context.refresh_dc(read_mappings.MD_CORE_MODEL)
+            mappings_module = util.lazy_import_dependency(module_path)
         except IOError as err:
-            raise Exception(  # FIXME: replace with proper pycsw exception
-                "NoApplicableCode",
-                "service",
-                "Could not load repository mappings: {}".format(err)
-            )
+            raise PycswError(
+                self, "NoApplicableCode", "service",
+                "Could not load repository mappings: {}".format(err))
+        self.context.md_core_model = mappings_module.MD_CORE_MODEL
+        self.context.refresh_dc(mappings_module.MD_CORE_MODEL)
 
     def reconfigure_logging(self):
         """Reconfigure the root logger"""
@@ -291,25 +296,38 @@ class PycswServer(object):
         logging.basicConfig(level=self.log_level, filename=self.log_file)
 
     def _get_requested_csw_version(self, request):
-        version = request.GET.get("version", request.POST.get("version"))
+        version_string = "version"
+        version = request.GET.get(version_string,
+                                  request.POST.get(version_string))
         if version is None:  # get the version from the body of the request
-            re_module = self._lazy_import_dependency("re")
+            re_module = util.lazy_import_dependency("re")
             try:
-                version = re_module.search(r'version="(\d\.\d\.\d)"',
-                                           request.body).group(1)
+                version = re_module.search(
+                    r'{}="(\d\.\d\.\d)"'.format(version_string),
+                    request.body
+                ).group(1)
             except AttributeError:
-                raise   # FIXME: replace with proper pycsw exception
+                # FIXME - look up the proper exception values
+                raise PycswError(self, None, None, None)
         return version
 
-    # FIXME: move this method to utilities module
-    @staticmethod
-    def _lazy_import_dependency(python_path, type_=None):
-        the_module = importlib.import_module(python_path)
-        result = the_module
-        if type_ is not None:
-            the_class = getattr(the_module, type_)
-            result = the_class
-        return result
+    def _get_requested_service(self, request):
+        service_string = "service"
+        service = request.GET.get(service_string,
+                                  request.POST.get(service_string))
+        if service is None:  # get the service from the body of the request
+            re_module = util.lazy_import_dependency("re")
+            try:
+                service = re_module.search(
+                    r'{}="(.*?)"'.format(service_string),
+                    request.body
+                ).group(1)
+            except AttributeError:
+                # could not find the requested service name
+                # FIXME - look up the proper exception values
+                raise PycswError(self, None, None, None)
+        return service
+
 
 
 class Csw(object):

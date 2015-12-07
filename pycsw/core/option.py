@@ -164,7 +164,8 @@ pycsw_options = [
         #default="mysql://username:password@localhost/pycsw?charset=utf8",
         section="repository"
     ),
-    StringOption("mappings", default="path/to/mappings", section="repository"),
+    StringOption("mappings", default="pycsw.core.mappings",
+                 section="repository"),
     StringOption("table", default="records", section="repository"),
     StringOption("filter", default="type='http://purl.org/dcmitype/Dataset'",
                  section="repository"),
