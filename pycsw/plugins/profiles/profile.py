@@ -73,7 +73,7 @@ class Profile(object):
         # repository
         model['typenames'][self.typename] = self.repository
 
-    def extend_core(self, model, namespaces, config):
+    def extend_core(self, model, namespaces, pycsw_server):
         ''' Extend config.model and config.namespaces '''
         raise NotImplementedError
 

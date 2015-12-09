@@ -85,10 +85,10 @@ class EBRIM(profile.Profile):
             added_namespaces=self.namespaces,
             repository=self.repository['rim:RegistryObject'])
 
-    def extend_core(self, model, namespaces, config):
+    def extend_core(self, model, namespaces, pycsw_server):
         ''' Extend core configuration '''
 
-        self.ogc_schemas_base = config.get('server', 'ogc_schemas_base')
+        self.ogc_schemas_base = pycsw_server.ogc_schemas_base
 
     def check_parameters(self, kvp):
         '''Check for Language parameter in GetCapabilities request'''

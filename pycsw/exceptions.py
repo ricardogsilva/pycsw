@@ -51,7 +51,5 @@ class PycswError(Exception):
         return node
 
     def __str__(self):
-        return etree.tostring(self.to_xml(), pretty_print=True,
-                              encoding=self.pycsw_server.encoding,
-                              xml_declaration=True)
+        return ("{0.code} - {0.locator}: {0.text}".format(self))
 

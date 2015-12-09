@@ -149,7 +149,7 @@ class APISO(profile.Profile):
             added_namespaces=self.namespaces,
             repository=self.repository['gmd:MD_Metadata'])
 
-    def extend_core(self, model, namespaces, config):
+    def extend_core(self, model, namespaces, pycsw_server):
         ''' Extend core configuration '''
 
         # update INSPIRE vars
@@ -160,21 +160,23 @@ class APISO(profile.Profile):
             model['operations']['Harvest']['parameters']['ResourceType']['values'].append('http://www.isotc211.org/schemas/2005/gmd/')
 
         # set INSPIRE config
-        if config.has_section('metadata:inspire') and config.has_option('metadata:inspire', 'enabled') and config.get('metadata:inspire', 'enabled') == 'true':
-            self.inspire_config = {}
-            self.inspire_config['languages_supported'] = config.get('metadata:inspire', 'languages_supported')
-            self.inspire_config['default_language'] = config.get('metadata:inspire', 'default_language')
-            self.inspire_config['date'] = config.get('metadata:inspire', 'date')
-            self.inspire_config['gemet_keywords'] = config.get('metadata:inspire', 'gemet_keywords')
-            self.inspire_config['conformity_service'] = config.get('metadata:inspire', 'conformity_service')
-            self.inspire_config['contact_name'] = config.get('metadata:inspire', 'contact_name')
-            self.inspire_config['contact_email'] = config.get('metadata:inspire', 'contact_email')
-            self.inspire_config['temp_extent'] = config.get('metadata:inspire', 'temp_extent')
+        if pycsw_server.inspire_enabled:
+            self.inspire_config = {
+                "languages_supported": pycsw_server.inspire_languages_supported,
+                "default_language": pycsw_server.inspire_default_language,
+                "date": pycsw_server.inspire_date,
+                "gemet_keywords": pycsw_server.inspire_gemet_keywords,
+                "conformity_service": pycsw_server.inspire_conformity_service,
+                "contact_name": pycsw_server.inspire_contact_name,
+                "contact_email": pycsw_server.inspire_contact_email,
+                "temp_extent": pycsw_server.inspire_temp_extent,
+
+            }
         else:
             self.inspire_config = None
 
-        self.ogc_schemas_base = config.get('server', 'ogc_schemas_base')
-        self.url = config.get('server', 'url')
+        self.ogc_schemas_base = pycsw_server.ogc_schemas_base
+        self.url = pycsw_server.server_url
 
     def check_parameters(self, kvp):
         '''Check for Language parameter in GetCapabilities request'''

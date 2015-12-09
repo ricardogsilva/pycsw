@@ -41,6 +41,7 @@ import logging
 import json
 import codecs
 import importlib
+import io
 
 from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
@@ -52,6 +53,7 @@ from pycsw.ogc.csw import csw2, csw3
 from pycsw.core.option import pycsw_options
 from pycsw.core.request import PycswHttpRequest
 from pycsw.exceptions import PycswError
+from pycsw.plugins.profiles.profile import Profile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +64,11 @@ class PycswServer(object):
     # defaulting to 2.0.2 while 3.0.0 is not out
     csw_version = util.CSW_VERSION_2_0_2
     repository = None
+    encoding = sys.getdefaultencoding()
+    language = "eng"
+    ogc_schemas_base = ""
+    log_level = logging.DEBUG
+    log_file = None
 
     def __init__(self, rtconfig=None, **kwargs):
         """Pycsw server
@@ -71,12 +78,60 @@ class PycswServer(object):
         :param rtconfig:
         :type rtconfig:
         :param kwargs:
-        :return:
         :raises:
         """
 
         self.context = config.StaticContext()
-        self.load_configuration(rtconfig, **kwargs)
+        configuration = self.get_configuration(rtconfig, **kwargs)
+        if configuration["transactions_enabled"]:
+            self.context.enable_transactions()
+        mappings = self.get_mappings(configuration["mappings"])
+        self.update_mappings(mappings)
+        repository, orm = self.get_repository(
+            source=configuration["source"],
+            database=configuration["database"],
+            table=configuration["table"],
+            filter_=configuration["filter"]
+        )
+        self.repository = repository
+        self.orm = orm
+        # don't need these configuration parameters anymore
+        del configuration["transactions_enabled"]
+        del configuration["source"]
+        del configuration["database"]
+        del configuration["mappings"]
+        del configuration["table"]
+        del configuration["filter"]
+        # generate instance variables from remaining configuration values
+        for name, value in configuration.items():
+            setattr(self, name, value)
+        self.profiles = []
+        loaded_profiles = ""
+        for profile in self.get_profiles(configuration["profiles"]):
+            profile.extend_core(self.context.model,
+                                self.context.namespaces,
+                                self)
+            self.profiles.append(profile)
+            loaded_profiles += profile.__class__.__name__
+        LOGGER.debug("loaded profiles: {}".format(loaded_profiles))
+        # generate domain model
+        # generate distributed search model
+
+    def get_profiles(self, profile_names):
+        profiles = []
+        for name in profile_names:
+            # try to load it as the profile name
+            python_path = "pycsw.plugins.profiles.{0}.{0}".format(name)
+            found_profiles = self._probe_for_profiles(python_path)
+            if not any(found_profiles):
+                # try to load it a a python path
+                found_profiles = self._probe_for_profiles(name)
+                if not any(found_profiles):
+                    # try to load it as a filesystem path
+                    python_path = name.replace(os.path.sep, ".")
+                    found_profiles = self._probe_for_profiles(python_path)
+            profiles.extend(found_profiles)
+        return profiles
 
     def dispatch(self, request):
         """Dispatch an incoming request for processing
@@ -152,7 +207,32 @@ class PycswServer(object):
     def dispatch_opensearch(self, request):
         raise NotImplementedError
 
-    def get_configuration_from_config_parser(self, configuration):
+    def get_configuration(self, runtime_settings=None, **kwargs):
+        """Load pycsw configuration from multiple input sources
+
+        :param runtime_settings:
+        :param kwargs:
+        :return:
+        :rtype: dict
+        """
+        # get default options first
+        the_config = {opt.name: opt.default for opt in pycsw_options}
+        # now try to override with any input configuration sources
+        if isinstance(runtime_settings, basestring):
+            to_load = self.get_configuration_from_file(runtime_settings)
+        elif isinstance(runtime_settings, ConfigParser.SafeConfigParser):
+            to_load = self.get_configuration_from_config_parser(
+                runtime_settings)
+        elif runtime_settings is not None:
+            to_load = self.get_configuration_from_dict(runtime_settings)
+        else:
+            to_load = {opt.name: opt.default for opt in pycsw_options}
+        to_load.update(kwargs)
+        the_config.update(to_load)
+        return the_config
+
+    @classmethod
+    def get_configuration_from_config_parser(cls, configuration):
         options_dict = {(opt.section, opt.config_parser_name): opt for
                         opt in pycsw_options}
         to_load = {}
@@ -190,26 +270,46 @@ class PycswServer(object):
     def get_configuration_from_file(self, path):
         parsed = None
         try:
-            with codecs.open(path, self.encoding) as fh:
+            with io.open(path, encoding=self.encoding) as fh:
                 try:
                     config_dict = json.load(fh)
                     parsed = self.get_configuration_from_dict(config_dict)
-                except Exception:  # FIXME - replace with proper exception
+                except ValueError:
+                    # could not decode JSON, maybe its configparser
+                    fh.seek(0)  # rewind the file object back to beginning
                     try:
                         config_parser = ConfigParser.SafeConfigParser()
                         config_parser.readfp(fh)
                         parsed = self.get_configuration_from_config_parser(
                             config_parser)
                     except Exception:  # FIXME - replace with proper exception
-                        raise RuntimeError(
-                            "Unable to load configuration file")
+                        raise PycswError(
+                            self, "", "",
+                            "Unable to load configuration file"
+                        )
         except IOError:
-            raise RuntimeError("Unable to open configuration file")
+            raise PycswError(self, "", "",
+                             "Unable to open configuration file")
         return parsed
+
+    def get_mappings(self, mappings_path):
+        if os.sep in mappings_path:  # its a filesystem path
+            module_path = os.path.splitext(mappings_path)[0].replace(
+                os.sep, ".")
+        else:  # its a python path
+            module_path = mappings_path
+        LOGGER.debug("Loading custom repository mappings "
+                     "from {}".format(module_path))
+        try:
+            mappings_module = util.lazy_import_dependency(module_path)
+        except IOError as err:
+            raise PycswError(
+                self, "NoApplicableCode", "service",
+                "Could not load repository mappings: {}".format(err))
+        return mappings_module
 
     def get_repository(self, source="pycsw", database="", mappings="",
                        table="", filter_=""):
-        self.load_mappings(mappings)
         repo_parameters = {
             "geonode": {
                 "path": ("pycsw.plugins.repository.geonode.geonode_",
@@ -226,8 +326,7 @@ class PycswServer(object):
                 "args": (database, self.context, None,
                          table, filter_),
                 "orm": "sqlalchemy",
-            }
-            ,
+            },
         }.get(source)
         repo_class = util.lazy_import_dependency(*repo_parameters["path"])
         orm = repo_parameters.get("orm")
@@ -235,65 +334,24 @@ class PycswServer(object):
             repository = repo_class(*repo_parameters["args"])
             LOGGER.debug("Repository loaded ({})".format(source))
         except Exception as err:
-            raise Exception(
+            raise PycswError(
+                self,
                 "NoApplicableCode",
                 "service",
-                "Could not load repository ({}): {}".format(source, err)
+                "Could not load repository ({}): {} - {}".format(
+                    source, database, err)
             )
         return repository, orm
-
-    def load_configuration(self, runtime_settings=None, **kwargs):
-        """Load pycsw configuration from multiple input sources
-
-        :param runtime_settings:
-        :param kwargs:
-        :return:
-        """
-        if isinstance(runtime_settings, basestring):
-            config = self.get_configuration_from_file(runtime_settings)
-        elif isinstance(runtime_settings, ConfigParser.SafeConfigParser):
-            config = self.get_configuration_from_config_parser(
-                runtime_settings)
-        elif runtime_settings is not None:
-            config = self.get_configuration_from_dict(runtime_settings)
-        else:
-            config = {opt.name: opt.default for opt in pycsw_options}
-        LOGGER.debug("config: {}".format(config))
-        config.update(kwargs)
-        for name, value in config.items():
-            setattr(self, name, value)
-        repository, orm = self.get_repository(
-            source=config.get("source", "pycsw"),
-            database=config["database"],
-            mappings=config["mappings"],
-            table=config["table"],
-            filter_=config["filter"]
-        )
-        self.repository = repository
-        self.orm = orm
-
-    def load_mappings(self, mappings_path):
-        if os.sep in mappings_path:  # its a filesystem path
-            module_path = os.path.splitext(mappings_path)[0].replace(
-                os.sep, ".")
-        else:  # its a python path
-            module_path = mappings_path
-        LOGGER.debug("Loading custom repository mappings "
-                     "from {}.".format(module_path))
-        try:
-            mappings_module = util.lazy_import_dependency(module_path)
-        except IOError as err:
-            raise PycswError(
-                self, "NoApplicableCode", "service",
-                "Could not load repository mappings: {}".format(err))
-        self.context.md_core_model = mappings_module.MD_CORE_MODEL
-        self.context.refresh_dc(mappings_module.MD_CORE_MODEL)
 
     def reconfigure_logging(self):
         """Reconfigure the root logger"""
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
         logging.basicConfig(level=self.log_level, filename=self.log_file)
+
+    def update_mappings(self, mappings):
+        self.context.md_core_model = mappings.MD_CORE_MODEL
+        self.context.refresh_dc(mappings.MD_CORE_MODEL)
 
     def _get_requested_csw_version(self, request):
         version_string = "version"
@@ -328,6 +386,23 @@ class PycswServer(object):
                 raise PycswError(self, None, None, None)
         return service
 
+    def _probe_for_profiles(self, python_path):
+        try:
+            python_module = util.lazy_import_dependency(python_path)
+        except ImportError as err:
+            raise PycswError(self, "", "",
+                             "Invalid profile: {}".format(python_path))
+        profiles = []
+        for obj_type in python_module.__dict__.values():
+            try:
+                if issubclass(obj_type, Profile):
+                    profile_instance = obj_type(self.context.model,
+                                                self.context.namespaces,
+                                                self.context)
+                    profiles.append(profile_instance)
+            except TypeError:
+                pass  # this obj_type was not a class, ignore it
+        return profiles
 
 
 class Csw(object):

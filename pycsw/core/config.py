@@ -532,6 +532,30 @@ class StaticContext(object):
         }
         self.set_model(prefix)
 
+    def enable_transactions(self):
+        schema_values = [
+            'http://www.opengis.net/cat/csw/2.0.2',
+            'http://www.opengis.net/cat/csw/3.0',
+            'http://www.opengis.net/wms',
+            'http://www.opengis.net/wfs',
+            'http://www.opengis.net/wcs',
+            'http://www.opengis.net/wps/1.0.0',
+            'http://www.opengis.net/sos/1.0',
+            'http://www.opengis.net/sos/2.0',
+            'http://www.isotc211.org/2005/gmi',
+            'urn:geoss:waf',
+        ]
+        self.model["operations"]["Transaction"] = {
+            'methods': {'get': False, 'post': True},
+            'TransactionSchemas': {'values': schema_values}
+        }
+        self.model['operations']['Harvest'] = {
+            'methods': {'get': False, 'post': True},
+            'parameters': {
+                'ResourceType': {'values': schema_values}
+            }
+        }
+
     def set_model(self, prefix):
         """sets model given request context"""
 

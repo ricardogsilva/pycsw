@@ -29,7 +29,7 @@ class PycswOption(object):
         self.name = name
         self.default = default
         self.section = section
-        self.config_parser_name = config_parser_name
+        self.config_parser_name = config_parser_name or name
 
     def from_config_parser(self, config_parser):
         name = self.config_parser_name or self.name
@@ -70,16 +70,24 @@ class DatetimeOption(PycswOption):
     def from_config_parser(self, config_parser):
         name = self.config_parser_name or self.name
         raw_value = config_parser.get(self.section, name)
-        return datetime.datetime.strptime(raw_value, "%Y-%m-%d")
+        try:
+            the_date_time = datetime.datetime.strptime(raw_value, "%Y-%m-%d")
+        except ValueError:
+            the_date_time = datetime.datetime.utcnow()
+        return the_date_time
 
 
 class DatetimeListOption(PycswOption):
 
     def from_config_parser(self, config_parser):
         name = self.config_parser_name or self.name
-        begin, end = config_parser.get(self.section, name).split(",")
-        begin_date_time = datetime.datetime.strptime(begin, "%Y-%m-%d")
-        end_date_time = datetime.datetime.strptime(end, "%Y-%m-%d")
+        begin, end = config_parser.get(self.section, name).split("/")
+        try:
+            begin_date_time = datetime.datetime.strptime(begin, "%Y-%m-%d")
+            end_date_time = datetime.datetime.strptime(end, "%Y-%m-%d")
+        except ValueError:
+            begin_date_time = datetime.datetime.utcnow()
+            end_date_time = datetime.datetime.utcnow()
         return (begin_date_time, end_date_time)
 
 
@@ -91,14 +99,16 @@ class LoggingOption(PycswOption):
 
 
 pycsw_options = [
-    StringOption("csw_root_path", default="/var/www/pycsw", section="server"),
+    StringOption("csw_root_path", default="/var/www/pycsw", section="server",
+                 config_parser_name="home"),
     StringOption("server_url", default="http://localhost/pycsw/csw.py",
-                section="server"),
+                section="server", config_parser_name="url"),
     StringOption("mimetype", default="application/xml; charset=UTF-8",
                 section="server"),
     StringOption("encoding", default="UTF-8", section="server"),
     StringOption("language", default="en-US", section="server"),
-    IntegerOption("max_records", default=10, section="server"),
+    IntegerOption("max_records", default=10, section="server",
+                  config_parser_name="maxrecords"),
     LoggingOption("log_level", default=logging.DEBUG, section="server"),
     StringOption("log_file", default="/tmp/pycsw.log", section="server"),
     StringOption("ogc_schemas_base", default="http://foo", section="server"),
@@ -111,52 +121,61 @@ pycsw_options = [
     BooleanOption("domain_counts", default=True, section="server"),
     BooleanOption("spatial_ranking", default=True, section="server"),
     StringListOption("profiles", default=["apiso"], section="server"),
-    BooleanOption("transactions", default=True, section="manager"),
+    BooleanOption("transactions_enabled", default=True, section="manager",
+                  config_parser_name="transactions"),
     StringListOption("allowed_ips", default=["127.0.0.1"], section="manager"),
-    IntegerOption("csw_harvest_page_size", default=10, section="manager"),
+    IntegerOption("csw_harvest_page_size", default=10, section="manager",
+                  config_parser_name="harvest_pagesize"),
     StringOption("identification_title", default="pycsw Geospatial Catalogue",
-                section="metadata"),
+                 section="metadata:main"),
     StringOption(
         "identification_abstract",
         default="pycsw is an OGC CSW server implementation written in Python",
-        section="metadata"
+        section="metadata:main"
     ),
     StringListOption("identification_keywords",
                      default=["catalogue", "discovery", "metadata"],
-                     section="metadata"),
+                     section="metadata:main"),
     StringOption("identification_keywords_type", default="theme",
-                 section="metadata"),
-    StringOption("identification_fees", default="None", section="metadata"),
+                 section="metadata:main"),
+    StringOption("identification_fees", default="None", section="metadata:main"),
     StringOption("identification_access_constraints", default="None",
-                 section="metadata"),
+                 section="metadata:main",
+                 config_parser_name="identification_accessconstraints"),
     StringOption("provider_name", default="Organization Name",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("provider_url", default="http://pycsw.org/",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("contact_name", default="Lastname, Firstname",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("contact_position", default="Position Title",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("contact_address", default="Mailing Address",
-                 section="metadata"),
-    StringOption("contact_city", default="City", section="metadata"),
+                 section="metadata:main"),
+    StringOption("contact_city", default="City", section="metadata:main"),
     StringOption("contact_state_or_province", default="Administrative Area",
-                 section="metadata"),
+                 section="metadata:main",
+                 config_parser_name="contact_stateorprovince"),
     StringOption("contact_postal_code", default="Zip or Postal Code",
-                 section="metadata"),
-    StringOption("contact_country", default="Country", section="metadata"),
+                 section="metadata:main",
+                 config_parser_name="contact_postalcode"),
+    StringOption("contact_country", default="Country",
+                 section="metadata:main"),
     StringOption("contact_phone", default="+xx-xxx-xxx-xxxx",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("contact_fax", default="+xx-xxx-xxx-xxxx",
-                 section="metadata"),
-    StringOption("contact_email", default="Email Address", section="metadata"),
-    StringOption("contact_url", default="Contact URL", section="metadata"),
+                 section="metadata:main"),
+    StringOption("contact_email", default="Email Address",
+                 section="metadata:main"),
+    StringOption("contact_url", default="Contact URL",
+                 section="metadata:main"),
     StringOption("contact_hours", default="Hours of Service",
-                 section="metadata"),
+                 section="metadata:main"),
     StringOption("contact_instructions",
                  default="During hours of service. Off on weekends",
-                 section="metadata"),
-    StringOption("contact_role", default="pointOfContact", section="metadata"),
+                 section="metadata:main"),
+    StringOption("contact_role", default="pointOfContact",
+                 section="metadata:main"),
     StringOption(
         "database",
         default="sqlite:////var/www/pycsw/tests/suites/cite/data/cite.db",
@@ -170,24 +189,32 @@ pycsw_options = [
     StringOption("filter", default="type='http://purl.org/dcmitype/Dataset'",
                  section="repository"),
     StringOption("source", default="pycsw", section="repository"),
-    BooleanOption("enabled", default=True, section="metadata:inspire"),
-    StringListOption("languages_supported", default=["eng", "gre"],
-                     section="metadata:inspire"),
-    StringOption("default_language", default="eng",
-                 section="metadata:inspire"),
-    DatetimeOption("date", default=datetime.datetime.utcnow(),
-                   section="metadata:inspire"),
-    StringListOption("gemet_keywords",
+    BooleanOption("inspire_enabled", default=True, section="metadata:inspire",
+                  config_parser_name="enabled"),
+    StringListOption("inspire_languages_supported", default=["eng", "gre"],
+                     section="metadata:inspire",
+                     config_parser_name="languages_supported"),
+    StringOption("inspire_default_language", default="eng",
+                 section="metadata:inspire",
+                 config_parser_name="default_language"),
+    DatetimeOption("inspire_date", default=datetime.datetime.utcnow(),
+                   section="metadata:inspire", config_parser_name="date"),
+    StringListOption("inspire_gemet_keywords",
                      default=["Utility and governmental services"],
-                     section="metadata:inspire"),
-    StringOption("conformity_service", default="notEvaluated",
-                 section="metadata:inspire"),
-    StringOption("contact_name", default="Organization Name",
-                 section="metadata:inspire"),
-    StringOption("contact_email", default="Email Address",
-                 section="metadata:inspire"),
-    DatetimeListOption("temp_extent",
+                     section="metadata:inspire",
+                     config_parser_name="gemet_keywords"),
+    StringOption("inspire_conformity_service", default="notEvaluated",
+                 section="metadata:inspire",
+                 config_parser_name="conformity_service"),
+    StringOption("inspire_contact_name", default="Organization Name",
+                 section="metadata:inspire",
+                 config_parser_name="contact_name"),
+    StringOption("inspire_contact_email", default="Email Address",
+                 section="metadata:inspire",
+                 config_parser_name="contact_email"),
+    DatetimeListOption("inspire_temp_extent",
                        default=(datetime.datetime.utcnow(),
                                 datetime.datetime.utcnow()),
-                       section="metadata:inspire"),
+                       section="metadata:inspire",
+                       config_parser_name="temp_extent"),
 ]
