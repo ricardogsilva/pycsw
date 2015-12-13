@@ -114,24 +114,8 @@ class PycswServer(object):
             self.profiles.append(profile)
             loaded_profiles += profile.__class__.__name__
         LOGGER.debug("loaded profiles: {}".format(loaded_profiles))
-        # generate domain model
         # generate distributed search model
-
-    def get_profiles(self, profile_names):
-        profiles = []
-        for name in profile_names:
-            # try to load it as the profile name
-            python_path = "pycsw.plugins.profiles.{0}.{0}".format(name)
-            found_profiles = self._probe_for_profiles(python_path)
-            if not any(found_profiles):
-                # try to load it a a python path
-                found_profiles = self._probe_for_profiles(name)
-                if not any(found_profiles):
-                    # try to load it as a filesystem path
-                    python_path = name.replace(os.path.sep, ".")
-                    found_profiles = self._probe_for_profiles(python_path)
-            profiles.extend(found_profiles)
-        return profiles
+        # generate domain model
 
     def dispatch(self, request):
         """Dispatch an incoming request for processing
@@ -307,6 +291,22 @@ class PycswServer(object):
                 self, "NoApplicableCode", "service",
                 "Could not load repository mappings: {}".format(err))
         return mappings_module
+
+    def get_profiles(self, profile_names):
+        profiles = []
+        for name in profile_names:
+            # try to load it as the profile name
+            python_path = "pycsw.plugins.profiles.{0}.{0}".format(name)
+            found_profiles = self._probe_for_profiles(python_path)
+            if not any(found_profiles):
+                # try to load it a a python path
+                found_profiles = self._probe_for_profiles(name)
+                if not any(found_profiles):
+                    # try to load it as a filesystem path
+                    python_path = name.replace(os.path.sep, ".")
+                    found_profiles = self._probe_for_profiles(python_path)
+            profiles.extend(found_profiles)
+        return profiles
 
     def get_repository(self, source="pycsw", database="", mappings="",
                        table="", filter_=""):

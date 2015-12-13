@@ -8,43 +8,27 @@ from ....core import util
 LOGGER = logging.getLogger(__name__)
 
 
-class OperationBase(object):
+class OperationRequestBase(object):
     name = None  # reimplement in child classes
     allowed_http_methods = (util.HTTP_GET, util.HTTP_POST)
 
     def __init__(self, pycsw_server):
         self.pycsw_server = pycsw_server
 
-    def process_request(self, request):
+    def dispatch(self, request):
         data_ = request.GET or request.POST or request.body
         if isinstance(data_, basestring):
-            validated_element = self.validate_xml(data_)
-            self.process_xml_request(validated_element)
+            validated = self.validate_xml(data_)
         else:
-            validated_kvp = self.validate_kvp(data_)
-            self.process_kvp_request(validated_kvp)
+            validated = self.validate_kvp(data_)
+        return self.process_request(validated)
 
-    def process_kvp_request(self, parameters):
-        """Process a request that is encoded as KVP parameters
+    def process_request(self, cleaned_request):
+        """Process a request
 
-        Reimplement this method in a child class if the class accepts KVP
-        requests.
-
-        :arg parameters: The already validated request KVP parameters
+        :arg parameters: The already validated request parameters
         :type parameters: dict
         """
-        raise NotImplementedError
-
-    def process_xml_request(self, request_element):
-        """Process a request that is encoded as an XML document
-
-        Reimplement this method in a child class if the class accepts XML
-        requests.
-
-        :arg request_element: The already validated request XML
-        :type request_element: etree.Element
-        """
-
         raise NotImplementedError
 
     def validate_http_method(self, method):
@@ -68,3 +52,8 @@ class OperationBase(object):
         """
         return None
 
+
+class OperationResponseBase(object):
+
+    def serialize(self):
+        raise NotImplementedError

@@ -3,32 +3,137 @@
 from __future__ import absolute_import
 import logging
 
-from .base import OperationBase
+from . import base
 from ....core import util
+from ....core.etree import etree
 from ....exceptions import PycswError
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class GetCapabilities(OperationBase):
+class Capabilities(base.OperationResponseBase):
+    filter_capabilities = None
+    version = ""
+    namespaces = {}
+
+    def __init__(self, cleaned_request):
+        self.service_identification = None
+
+
+    def serialize(self, ogc_schemas_base):
+        response = etree.Element(
+            "{{{}}}Capabilities".format(self.namespaces["csw"]),
+            nsmap=self.namespaces, version=self.version
+        )
+        response.set(
+            "{{{}}}schemaLocation".format(self.namespaces["xsi"]),
+            "{} {}/csw/2.0.2/CSW-discovery.xsd'".format(
+                self.namespaces["ows_namespace"],
+                ogc_schemas_base
+            )
+        )
+        # TODO - add the updateSequence attribute
+        if self.service_identification is not None:
+            service_identification = etree.SubElement(
+                response,
+                "{{{}}}ServiceIdentification".format(self.namespaces["ows"])
+            )
+
+
+        metadata_main = dict(self.parent.config.items('metadata:main'))
+
+        if serviceidentification:
+            LOGGER.debug('Writing section ServiceIdentification.')
+
+            serviceidentification = etree.SubElement(node, \
+                                                     util.nspath_eval('ows:ServiceIdentification',
+                                                                      self.parent.context.namespaces))
+
+            etree.SubElement(serviceidentification,
+                             util.nspath_eval('ows:Title', self.parent.context.namespaces)).text = \
+                metadata_main.get('identification_title', 'missing')
+
+            etree.SubElement(serviceidentification,
+                             util.nspath_eval('ows:Abstract', self.parent.context.namespaces)).text = \
+                metadata_main.get('identification_abstract', 'missing')
+
+            keywords = etree.SubElement(serviceidentification,
+                                        util.nspath_eval('ows:Keywords', self.parent.context.namespaces))
+
+            for k in \
+                    metadata_main.get('identification_keywords').split(','):
+                etree.SubElement(
+                    keywords, util.nspath_eval('ows:Keyword',
+                                               self.parent.context.namespaces)).text = k
+
+            etree.SubElement(keywords,
+                             util.nspath_eval('ows:Type', self.parent.context.namespaces),
+                             codeSpace='ISOTC211/19115').text = \
+                metadata_main.get('identification_keywords_type', 'missing')
+
+            etree.SubElement(serviceidentification,
+                             util.nspath_eval('ows:ServiceType', self.parent.context.namespaces),
+                             codeSpace='OGC').text = 'CSW'
+
+            for stv in self.parent.context.model['parameters']['version']['values']:
+                etree.SubElement(serviceidentification,
+                                 util.nspath_eval('ows:ServiceTypeVersion',
+                                                  self.parent.context.namespaces)).text = stv
+
+            etree.SubElement(serviceidentification,
+                             util.nspath_eval('ows:Fees', self.parent.context.namespaces)).text = \
+                metadata_main.get('identification_fees', 'missing')
+
+            etree.SubElement(serviceidentification,
+                             util.nspath_eval('ows:AccessConstraints',
+                                              self.parent.context.namespaces)).text = \
+                metadata_main.get('identification_accessconstraints', 'missing')
+
+
+class GetCapabilities(base.OperationRequestBase):
     name = "GetCapabilities"
     allowed_http_methods = (util.HTTP_GET,)
+    sections = ["ServiceIdentification", "ServiceProvider",
+                "OperationsMetadata", "Filter_Capabilities"]
 
     def validate_kvp(self, parameters):
+        requested_sections = parameters.get("sections", "").split(",")
+        requested_versions = parameters.get("acceptVersions", "").split(",")
+        requested_accept_formats = parameters.get(
+            "acceptFormats", "text/xml").split(",")
         validated_parameters = {
-            "sections": parameters.get("sections", "").split(","),
+            # updateSequence - optional
+            # acceptLanguages - optional
+            "acceptFormats": requested_accept_formats,
+            "acceptVersions": self._validate_accept_versions(
+                requested_versions),
+            "sections": self._validate_sections(requested_sections),
         }
         return validated_parameters
 
-    def process_kvp_request(self, parameters):
-        pass
+    def _validate_sections(self, requested_sections):
+        for requested in requested_sections:
+            if requested not in self.sections:
+                raise PycswError("", "", "", "Invalid section")
+        return requested_sections
 
-    def process_request(self, request):
+    def _validate_accept_versions(self, requested_versions):
+        for version in requested_versions:
+            if version not in self.pycsw_server.accept_versions:
+                raise PycswError("", "", "", "Invalid accept version")
+        return requested_versions
+
+    def validate_xml(self, request_body):
+        raise NotImplementedError
+
+    def process_request(self, cleaned_request):
         # As an intermediary version, we're using the previous implementation
         # mostly unchanged. The next move is to reimplement using the
         # validate_kvp() and process_kvp() methods
-        return self._get_capabilities(request)
+        #return self._get_capabilities(cleaned_request)
+        response = Capabilities(cleaned_request)
+        response.serialize()
 
     def _get_capabilities(self, request):
         """Handle GetCapabilities request"""

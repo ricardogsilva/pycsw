@@ -13,7 +13,6 @@ CswOperationSpecification = namedtuple(
 )
 
 
-
 class CswInterface(object):
     version = None  # re-assign in child classes
 
