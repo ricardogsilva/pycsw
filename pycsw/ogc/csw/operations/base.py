@@ -55,5 +55,8 @@ class OperationRequestBase(object):
 
 class OperationResponseBase(object):
 
+    def __init__(self, pycsw_server):
+        self.pycsw_server = pycsw_server
+
     def serialize(self):
         raise NotImplementedError

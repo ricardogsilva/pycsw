@@ -7,6 +7,7 @@ from . import base
 from ....core import util
 from ....core.etree import etree
 from ....exceptions import PycswError
+from ....core import option
 
 
 LOGGER = logging.getLogger(__name__)
@@ -15,30 +16,44 @@ LOGGER = logging.getLogger(__name__)
 class Capabilities(base.OperationResponseBase):
     filter_capabilities = None
     version = ""
-    namespaces = {}
 
-    def __init__(self, cleaned_request):
-        self.service_identification = None
+    def __init__(self, pycsw_server, service_identification=True):
+        super(Capabilities, self).__init__(pycsw_server)
+        self.service_identification = service_identification
 
-
-    def serialize(self, ogc_schemas_base):
+    def serialize(self):
         response = etree.Element(
-            "{{{}}}Capabilities".format(self.namespaces["csw"]),
-            nsmap=self.namespaces, version=self.version
+            "{{{}}}Capabilities".format(self.pycsw_server.namespaces["csw"]),
+            nsmap=self.pycsw_server.namespaces, version=self.version
         )
         response.set(
-            "{{{}}}schemaLocation".format(self.namespaces["xsi"]),
+            "{{{}}}schemaLocation".format(self.pycsw_server.namespaces["xsi"]),
             "{} {}/csw/2.0.2/CSW-discovery.xsd'".format(
-                self.namespaces["ows_namespace"],
-                ogc_schemas_base
+                self.pycsw_server.namespaces["ows_namespace"],
+                self.pycsw_server.ogc_schemas_base
             )
         )
         # TODO - add the updateSequence attribute
-        if self.service_identification is not None:
-            service_identification = etree.SubElement(
-                response,
-                "{{{}}}ServiceIdentification".format(self.namespaces["ows"])
-            )
+        option_dict = {opt.name: opt for opt in option.pycsw_options}
+        if self.service_identification:
+            service_identification = self._get_service_identification(
+                option_dict)
+            response.append(service_identification)
+
+    def _get_service_identification(self, option_dict):
+        service_identification = etree.Element(
+            "{{{}}}ServiceIdentification".format(
+                self.pycsw_server.namespaces["ows"]),
+            nsmap=self.pycsw_server.namespaces
+        )
+        for parameter_name in ("identfication_title",
+                               "identification_abstract",
+                               "identification_keywords",
+                               "identification_keywords_type"):
+            option_instance = option_dict[parameter_name]
+            option_element = option_instance.to_xml(self.pycsw_server)
+            service_identification.append(option_element)
+        return service_identification
 
 
         metadata_main = dict(self.parent.config.items('metadata:main'))
@@ -132,7 +147,12 @@ class GetCapabilities(base.OperationRequestBase):
         # mostly unchanged. The next move is to reimplement using the
         # validate_kvp() and process_kvp() methods
         #return self._get_capabilities(cleaned_request)
-        response = Capabilities(cleaned_request)
+        write_service_identification = ("ServiceIdentification" in
+                                        cleaned_request["sections"])
+        response = Capabilities(
+            self.pycsw_server,
+            service_identification=write_service_identification,
+        )
         response.serialize()
 
     def _get_capabilities(self, request):

@@ -1,16 +1,9 @@
 """Base CSW class"""
 
 from __future__ import absolute_import
-from collections import namedtuple
 
 from ...core import util
 from ...exceptions import PycswError
-
-
-CswOperationSpecification = namedtuple(
-    "CswOperationSpecification",
-    ["name", "allowed_http_methods", "handler"]
-)
 
 
 class CswInterface(object):
