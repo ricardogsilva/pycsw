@@ -11,17 +11,21 @@ LOGGER = logging.getLogger(__name__)
 class OperationRequestBase(object):
     name = None  # reimplement in child classes
     allowed_http_methods = (util.HTTP_GET, util.HTTP_POST)
+    serializers = []  # reimplement in child classes
 
     def __init__(self, pycsw_server):
         self.pycsw_server = pycsw_server
 
-    def dispatch(self, request):
+    def dispatch(self, request):  # perhaps this method is not needed
         data_ = request.GET or request.POST or request.body
-        if isinstance(data_, basestring):
-            validated = self.validate_xml(data_)
-        else:
-            validated = self.validate_kvp(data_)
+        validated = self.validate_request(data_)
         return self.process_request(validated)
+
+    def get_serializer(self, cleaned_request):
+        result = None
+        for response_format in cleaned_request["acceptFormats"]:
+            for serializer in self.serializers:
+                pass
 
     def process_request(self, cleaned_request):
         """Process a request
@@ -30,6 +34,13 @@ class OperationRequestBase(object):
         :type parameters: dict
         """
         raise NotImplementedError
+
+    def validate_request(self, data_):
+        if isinstance(data_, basestring):
+            validated = self.validate_xml(data_)
+        else:
+            validated = self.validate_kvp(data_)
+        return validated
 
     def validate_http_method(self, method):
         return True if method in self.allowed_http_methods else False
