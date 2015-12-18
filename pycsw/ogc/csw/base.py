@@ -22,27 +22,25 @@ class CswInterface(object):
     def dispatch(self, request):
         result = None
         try:
-            name = request.GET["request"]
-            operation_class_path = self.operations[name]
+            name = request.GET.get("request", request.POST["request"])
         except KeyError:
-            try:
-                name = request.POST["request"]
-                operation_class_path = self.operations[name]
-            except KeyError:
-                for op, op_class_path in self.operations.items():
-                    if request.body.find(op.name) != -1:
-                        operation_class_path = op_class_path
-                        break
-                else:  # for loop ran until the end, we have no operation
-                    # FIXME: look up the proper values for the exception
-                    raise PycswError(self.parent, None, None, None)
+            for op, op_class_path in self.operations.items():
+                if request.body.find(op.name) != -1:
+                    name = op
+                    break
+            else:  # for loop ran until the end, we have no operation
+                # FIXME: look up the proper values for the exception
+                raise PycswError(self.parent, None, None, None)
+        operation_class_path = self.operations[name]
         module_path, _, class_name = operation_class_path.rpartition(".")
         operation_class = util.lazy_import_dependency(module_path,
                                                       class_name)
-        operation = operation_class(self.parent)
-        if operation.validate_http_method(request.method):
-            result = operation.process_request(request)
-        else:
-            # FIXME: look up the proper values for the exception
-            raise PycswError(self.parent, None, None, None)
-        return result
+        operation = operation_class.from_request(self.parent, request)
+        return operation.dispatch()
+        #operation = operation_class(self.parent)
+        #if operation.validate_http_method(request.method):
+        #    result = operation.process_request(request)
+        #else:
+        #    # FIXME: look up the proper values for the exception
+        #    raise PycswError(self.parent, None, None, None)
+        #return result

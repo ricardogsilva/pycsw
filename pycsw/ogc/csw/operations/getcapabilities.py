@@ -8,6 +8,7 @@ from ....core import util
 from ....core.etree import etree
 from ....exceptions import PycswError
 from ....core import option
+from ..serializers import kvp
 
 
 LOGGER = logging.getLogger(__name__)
@@ -109,8 +110,31 @@ class Capabilities(base.OperationResponseBase):
 class GetCapabilities(base.OperationRequestBase):
     name = "GetCapabilities"
     allowed_http_methods = (util.HTTP_GET,)
-    sections = ["ServiceIdentification", "ServiceProvider",
-                "OperationsMetadata", "Filter_Capabilities"]
+    serializers = [kvp.GetCapabilitiesCsw202Serializer]
+    response_base = Capabilities
+    sections = ["ServiceIdentification",
+                "ServiceProvider",
+                "OperationsMetadata",
+                "Filter_Capabilities"]
+
+    @classmethod
+    def from_request(cls, pycsw_server, request):
+        # lets validate the AcceptFormats parameter of the request first,
+        # then we can deserialize the request, if needed
+        valid_accept_format = False
+        for serializer in cls.response_base.serializers:
+            for output_format in request.get_output_formats():
+                if output_format in serializer.output_formats:
+                    valid_accept_format = True
+                    break
+            if valid_accept_format:
+                break
+        else:  # none of the requested accept formats are acceptable
+            raise PycswError("", "", "")
+        return super(GetCapabilities, cls).from_request(pycsw_server, request)
+
+
+
 
     def validate_kvp(self, parameters):
         requested_sections = parameters.get("sections", "").split(",")
