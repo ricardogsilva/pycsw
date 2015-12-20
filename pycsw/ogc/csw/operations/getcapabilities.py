@@ -6,32 +6,46 @@ import logging
 from . import base
 from ....core import util
 from ....core.etree import etree
-from ....exceptions import PycswError
+from .... import exceptions
 from ....core import option
 from ..serializers import kvp
 
 
 LOGGER = logging.getLogger(__name__)
 
+SERVICE_IDENTIFICATION_SECTION = "ServiceIdentification"
+SERVICE_PROVIDER_SECTION = "ServiceProvider"
+OPERATIONS_METADATA_SECTION = "OperationsMetadata"
+FILTER_CAPABILITIES_SECTION = "Filter_Capabilities"
+CONTENTS_SECTION = "Contents"
+
 
 class Capabilities(base.OperationResponseBase):
     filter_capabilities = None
-    version = ""
+    serializers = [
+        kvp.GetCapabilitiesCsw202Serializer,
+    ]
 
-    def __init__(self, pycsw_server, service_identification=True):
-        super(Capabilities, self).__init__(pycsw_server)
+    def __init__(self, csw_version_interface,
+                 service_identification=None, service_provider=None,
+                 operations_metadata=None, contents=None):
+        super(Capabilities, self).__init__(csw_version_interface)
         self.service_identification = service_identification
+        self.service_provider = service_provider
+        self.operations_metadata = operations_metadata
+        self.contents = contents
 
     def serialize(self):
+        namespaces = self.csw_version_interface.parent.namespaces
         response = etree.Element(
-            "{{{}}}Capabilities".format(self.pycsw_server.namespaces["csw"]),
-            nsmap=self.pycsw_server.namespaces, version=self.version
+            "{{{}}}Capabilities".format(namespaces["csw"]),
+            nsmap=namespaces, version=self.version
         )
         response.set(
-            "{{{}}}schemaLocation".format(self.pycsw_server.namespaces["xsi"]),
+            "{{{}}}schemaLocation".format(namespaces["xsi"]),
             "{} {}/csw/2.0.2/CSW-discovery.xsd'".format(
-                self.pycsw_server.namespaces["ows_namespace"],
-                self.pycsw_server.ogc_schemas_base
+                namespaces["ows_namespace"],
+                self.csw_version_interface.parent.ogc_schemas_base
             )
         )
         # TODO - add the updateSequence attribute
@@ -108,76 +122,151 @@ class Capabilities(base.OperationResponseBase):
 
 
 class GetCapabilities(base.OperationRequestBase):
-    name = "GetCapabilities"
     allowed_http_methods = (util.HTTP_GET,)
-    serializers = [kvp.GetCapabilitiesCsw202Serializer]
+    serializers = [kvp.GetCapabilitiesCsw202Serializer()]
     response_base = Capabilities
-    sections = ["ServiceIdentification",
-                "ServiceProvider",
-                "OperationsMetadata",
-                "Filter_Capabilities"]
+    metadata_sections = [
+        SERVICE_IDENTIFICATION_SECTION,
+        SERVICE_PROVIDER_SECTION,
+        OPERATIONS_METADATA_SECTION,
+        FILTER_CAPABILITIES_SECTION,
+        CONTENTS_SECTION,
+    ]
+    http_accept_headers = []
+
+    def __init__(self, csw_version_interface,
+                 request=None, accept_versions=None, accept_formats=None,
+                 sections=None, update_sequence=None,
+                 http_accept_headers=None):
+        super(GetCapabilities, self).__init__(csw_version_interface)
+        sections = sections or []
+        if request != util.CSW_OPERATION_GET_CAPABILITIES:
+            raise exceptions.PycswError(
+                    code=exceptions.OPERATION_NOT_SUPPORTED)
+        # TODO: validate accept_versions
+        self.output_format = self._validate_accept_format(
+            accept_formats, http_accept_headers or [])
+        self.requested_sections = self._validate_sections(sections)
+        # TODO: validate update_sequence
 
     @classmethod
-    def from_request(cls, pycsw_server, request):
-        # lets validate the AcceptFormats parameter of the request first,
-        # then we can deserialize the request, if needed
-        valid_accept_format = False
-        for serializer in cls.response_base.serializers:
-            for output_format in request.get_output_formats():
-                if output_format in serializer.output_formats:
-                    valid_accept_format = True
-                    break
-            if valid_accept_format:
-                break
-        else:  # none of the requested accept formats are acceptable
-            raise PycswError("", "", "")
-        return super(GetCapabilities, cls).from_request(pycsw_server, request)
+    def from_request(cls, csw_version_interface, request):
+        instance = super(GetCapabilities, cls).from_request(
+            csw_version_interface, request)
+        if any(request.META["HTTP_ACCEPT"]):
+            instance.http_accept_headers = request.META.get("HTTP_ACCEPT")
+        else:
+            instance.http_accept_headers = ["text/xml"]
+        return instance
 
+    def dispatch(self):
+        response = self.response_base(self.csw_version_interface)
+        if SERVICE_IDENTIFICATION_SECTION in self.requested_sections:
+            response.service_identification = self.get_service_identification()
+        if SERVICE_PROVIDER_SECTION in self.requested_sections:
+            response.service_provider = self.get_service_provider()
+        if OPERATIONS_METADATA_SECTION in self.requested_sections:
+            pass
+        if FILTER_CAPABILITIES_SECTION in self.requested_sections:
+            pass
+        if CONTENTS_SECTION in self.requested_sections:
+            pass
+        return response
 
-
-
-    def validate_kvp(self, parameters):
-        requested_sections = parameters.get("sections", "").split(",")
-        requested_versions = parameters.get("acceptVersions", "").split(",")
-        requested_accept_formats = parameters.get(
-            "acceptFormats", "text/xml").split(",")
-        validated_parameters = {
-            # updateSequence - optional
-            # acceptLanguages - optional
-            "acceptFormats": requested_accept_formats,
-            "acceptVersions": self._validate_accept_versions(
-                requested_versions),
-            "sections": self._validate_sections(requested_sections),
+    def get_service_identification(self):
+        pycsw_server = self.csw_version_interface.parent
+        return {
+            "title": pycsw_server.identification_title,
+            "abstract": pycsw_server.identification_abstract,
+            "access_constraints": \
+                pycsw_server.identification_access_constraints,
+            "fees": pycsw_server.identification_fees,
+            "keywords": pycsw_server.identification_keywords,
+            "keywords_type": pycsw_server.identification_keywords_type,
         }
-        return validated_parameters
+
+    def get_service_provider(self):
+        pycsw_server = self.csw_version_interface.parent
+        return {
+            "provider_name": pycsw_server.provider_name,
+            "provider_url": pycsw_server.provider_url,
+            "contact_name": pycsw_server.contact_name,
+            "contact_position": pycsw_server.contact_position,
+            "phone": pycsw_server.contact_phone,
+            "fax": pycsw_server.contact_fax,
+            "address": pycsw_server.contact_address,
+            "city": pycsw_server.contact_city,
+            "state_or_province": pycsw_server.contact_state_or_province,
+            "postal_code": pycsw_server.contact_postal_code,
+            "country": pycsw_server.contact_country,
+            "email": pycsw_server.contact_email,
+            "contact_url": pycsw_server.contact_url,
+            "hours_of_service": pycsw_server.contact_hours,
+            "instructions": pycsw_server.contact_instructions,
+            "role": pycsw_server.contact_role,
+        }
+
+    def _validate_accept_format(self, request_accept_formats,
+                                http_accept_header):
+        """
+        According to the CSW standard, we get the output formats following the
+        recipe:
+
+        * Try to get the output format as a parameter of the request
+        * If it exists, it must match the HTTP Accept header
+        * If it exists but does not match the HTTP header, raise an exception
+        * If it does not exist, use the value specified in the HTTP Accept
+        header
+        * If the HTTP Accept header is also missing, use the default
+          value of text/xml
+
+        :return:
+        """
+
+        valid_formats = []
+        for output_serializer in self.response_base.serializers:
+            valid_formats.extend(output_serializer.output_formats)
+        if any(request_accept_formats):
+            for accept_format in request_accept_formats:
+                valid = accept_format in valid_formats
+                if any(http_accept_header):
+                    valid = valid and accept_format in http_accept_header
+                if valid:
+                    output_format = accept_format
+                    break
+            else:  # could not find an acceptable output format
+                raise exceptions.PycswError(
+                    code=exceptions.INVALID_PARAMETER_VALUE,
+                    locator="AcceptFormats"
+                )
+        elif any(http_accept_header):
+            for http_accept in http_accept_header:
+                if http_accept in valid_formats:
+                    output_format = http_accept
+                    break
+            else:  # could not find an acceptable output format
+                raise exceptions.PycswError(
+                        code=exceptions.INVALID_PARAMETER_VALUE,
+                        locator="AcceptFormats"
+                )
+        else:
+            output_format = "text/xml"
+        return output_format
 
     def _validate_sections(self, requested_sections):
-        for requested in requested_sections:
-            if requested not in self.sections:
-                raise PycswError("", "", "", "Invalid section")
-        return requested_sections
-
-    def _validate_accept_versions(self, requested_versions):
-        for version in requested_versions:
-            if version not in self.pycsw_server.accept_versions:
-                raise PycswError("", "", "", "Invalid accept version")
-        return requested_versions
-
-    def validate_xml(self, request_body):
-        raise NotImplementedError
-
-    def process_request(self, cleaned_request):
-        # As an intermediary version, we're using the previous implementation
-        # mostly unchanged. The next move is to reimplement using the
-        # validate_kvp() and process_kvp() methods
-        #return self._get_capabilities(cleaned_request)
-        write_service_identification = ("ServiceIdentification" in
-                                        cleaned_request["sections"])
-        response = Capabilities(
-            self.pycsw_server,
-            service_identification=write_service_identification,
-        )
-        response.serialize()
+        if any(requested_sections):
+            sections = []
+            for section_name in requested_sections:
+                if section_name in self.metadata_sections:
+                    sections.append(section_name)
+                else:
+                    raise exceptions.PycswError(
+                            code=exceptions.INVALID_PARAMETER_VALUE,
+                            locator=section_name
+                    )
+        else:
+            sections = self.metadata_sections[:]
+        return sections
 
     def _get_capabilities(self, request):
         """Handle GetCapabilities request"""
@@ -204,7 +293,7 @@ class GetCapabilities(base.OperationRequestBase):
                 result = \
                     self.pycsw_server.profiles['loaded'][prof].check_parameters(request.GET)
                 if result is not None:
-                    raise PycswError(self.pycsw_server, result["code"],
+                    raise exceptions.PycswError(self.pycsw_server, result["code"],
                                      result["locator"], result["text"])
 
         # @updateSequence: get latest update to repository

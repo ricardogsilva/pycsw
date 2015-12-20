@@ -3,7 +3,7 @@
 from __future__ import absolute_import
 
 from ...core import util
-from ...exceptions import PycswError
+from ... import exceptions
 
 
 class CswInterface(object):
@@ -20,7 +20,6 @@ class CswInterface(object):
         }
 
     def dispatch(self, request):
-        result = None
         try:
             name = request.GET.get("request", request.POST["request"])
         except KeyError:
@@ -29,18 +28,19 @@ class CswInterface(object):
                     name = op
                     break
             else:  # for loop ran until the end, we have no operation
-                # FIXME: look up the proper values for the exception
-                raise PycswError(self.parent, None, None, None)
-        operation_class_path = self.operations[name]
-        module_path, _, class_name = operation_class_path.rpartition(".")
-        operation_class = util.lazy_import_dependency(module_path,
-                                                      class_name)
-        operation = operation_class.from_request(self.parent, request)
-        return operation.dispatch()
-        #operation = operation_class(self.parent)
-        #if operation.validate_http_method(request.method):
-        #    result = operation.process_request(request)
-        #else:
-        #    # FIXME: look up the proper values for the exception
-        #    raise PycswError(self.parent, None, None, None)
-        #return result
+                raise exceptions.PycswError(
+                    code=exceptions.NO_APPLICABLE_CODE)
+        try:
+            operation_class_path = self.operations[name]
+        except KeyError:
+            raise exceptions.PycswError(
+                code=exceptions.OPERATION_NOT_SUPPORTED,
+                locator=name
+            )
+        else:
+            module_path, _, class_name = operation_class_path.rpartition(".")
+            operation_class = util.lazy_import_dependency(module_path,
+                                                          class_name)
+            operation = operation_class.from_request(self.parent, self,
+                                                     request)
+            return operation.dispatch()
