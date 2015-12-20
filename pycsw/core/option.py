@@ -75,32 +75,10 @@ class BooleanOption(PycswOption):
 
 class StringListOption(PycswOption):
 
-    def __init__(self, capabilities_item_name=None,
-                 capabilities_item_namespace=None, *args, **kwargs):
-        super(StringListOption, self).__init__(*args, **kwargs)
-        self.capabilities_item_name = capabilities_item_name
-        self.capabilities_item_namespace = capabilities_item_namespace
-
     def from_config_parser(self, config_parser):
         name = self.config_parser_name or self.name
         raw_value = config_parser.get(self.section, name)
         return [item.strip() for item in raw_value.split(",")]
-
-    def to_xml(self, pycsw_server):
-        element_name = "{{{}}}{}".format(
-            pycsw_server.namespaces[self.capabilities_namespace],
-            self.capabilities_name
-        )
-        element = etree.Element(element_name, nsmap=pycsw_server.namespaces)
-        values = getattr(pycsw_server, self.name)
-        for value in values:
-            sub_element_name = "{{{}}}{}".format(
-                pycsw_server.namespaces[self.capabilities_item_namespace],
-                self.capabilities_item_name
-            )
-            sub_element = etree.SubElement(element, sub_element_name,
-                                           nsmap=pycsw_server.namespaces)
-        return element
 
 
 class DatetimeOption(PycswOption):
@@ -175,10 +153,7 @@ pycsw_options = [
     ),
     StringListOption("identification_keywords",
                      default=["catalogue", "discovery", "metadata"],
-                     section="metadata:main", capabilities_name="Keywords",
-                     capabilities_namespace="ows",
-                     capabilities_item_name="Keyword",
-                     capabilities_item_namespace="ows"),
+                     section="metadata:main"),
     StringOption("identification_keywords_type", default="theme",
                  section="metadata:main"),
     StringOption("identification_fees", default="None", section="metadata:main"),
