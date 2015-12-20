@@ -57,30 +57,7 @@ class PycswHttpRequest(object):
         except ValueError:
             content_length = 0
         headers["HTTP_CONTENT_LENGTH"] = content_length
+        headers["HTTP_ACCEPT"] = [word.strip() for word in
+                                  headers.get("HTTP_ACCEPT", "").split(",")]
         return headers
-
-    def get_output_formats(self):
-        """
-        According to the CSW standard, we get the output formats following the
-        recipe:
-
-        * Try to get the output format as a parameter of the request
-        * If it exists, it must match the HTTP Accept header
-        * If it exists but does not match the HTTP header, raise an exception
-        * If it does not exist, use the value specified in the HTTP Accept
-          header
-        * If the HTTP Accept header is also missing, use the default value of
-          text/xml
-
-        :return:
-        """
-
-        if self.method == util.HTTP_GET:
-            requested = [item.strip() for item in
-                         self.GET.get("outputFormat", "").split(",")]
-        elif self.method == util.HTTP_POST:
-            requested = [item.strip() for item in
-                         self.POST.get("outputFormat", "").split(",")]
-            if not any(requested):  # maybe it is in the body of the request
-                pass  # TODO - finish this
 
