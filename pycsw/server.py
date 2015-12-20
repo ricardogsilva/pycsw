@@ -70,7 +70,7 @@ class PycswServer(object):
     log_level = logging.DEBUG
     log_file = None
 
-    def __init__(self, rtconfig=None, **kwargs):
+    def __init__(self, rtconfig=None, reconfigure_logging=True, **kwargs):
         """Pycsw server
 
         :param env:
@@ -81,12 +81,18 @@ class PycswServer(object):
         :raises:
         """
 
-        self.context = config.StaticContext()
         configuration = self.get_configuration(rtconfig, **kwargs)
+        if reconfigure_logging:
+            util.reconfigure_logging(configuration["log_level"],
+                                     configuration["log_file"])
+        self.context = config.StaticContext()
+        LOGGER.info("loaded context")
         if configuration["transactions_enabled"]:
             self.context.enable_transactions()
+            LOGGER.info("enabled transaction support")
         mappings = self.get_mappings(configuration["mappings"])
         self.update_mappings(mappings)
+        LOGGER.info("loaded mappings")
         repository, orm = self.get_repository(
             source=configuration["source"],
             database=configuration["database"],
@@ -94,8 +100,11 @@ class PycswServer(object):
             filter_=configuration["filter"]
         )
         self.repository = repository
+        LOGGER.info("loaded repository")
         self.orm = orm
         # don't need these configuration parameters anymore
+        del configuration["log_level"]
+        del configuration["log_file"]
         del configuration["transactions_enabled"]
         del configuration["source"]
         del configuration["database"]
@@ -105,6 +114,7 @@ class PycswServer(object):
         # generate instance variables from remaining configuration values
         for name, value in configuration.items():
             setattr(self, name, value)
+        LOGGER.info("loaded server attributes")
         self.profiles = []
         loaded_profiles = ""
         for profile in self.get_profiles(configuration["profiles"]):
@@ -113,7 +123,7 @@ class PycswServer(object):
                                 self)
             self.profiles.append(profile)
             loaded_profiles += profile.__class__.__name__
-        LOGGER.debug("loaded profiles: {}".format(loaded_profiles))
+        LOGGER.info("loaded profiles: {}".format(loaded_profiles))
         # generate distributed search model
         # generate domain model
 
@@ -130,6 +140,7 @@ class PycswServer(object):
 
         requested_mode = request.GET.get("mode",
                                          request.POST.get("mode", "csw"))
+        LOGGER.info("dispatching mode {}".format(requested_mode))
         dispatch_method = {
             "csw": self.dispatch_csw,
             "sru": self.dispatch_sru,
@@ -162,8 +173,9 @@ class PycswServer(object):
             raise PycswError(self, None, None, None)
         csw_version_class = util.lazy_import_dependency(
             *csw_version_class_info)
-        instance = csw_version_class(self)
-        return instance.dispatch(request)
+        csw_interface = csw_version_class(self)
+        LOGGER.info("Using csw_interface {}".format(csw_interface))
+        return csw_interface.dispatch(request)
 
     def dispatch_sru(self, request):
         """Dispatch the input SRU request for processing
@@ -268,11 +280,11 @@ class PycswServer(object):
                             config_parser)
                     except Exception:  # FIXME - replace with proper exception
                         raise PycswError(
-                            self, "", "",
+                            "", "",
                             "Unable to load configuration file"
                         )
         except IOError:
-            raise PycswError(self, "", "",
+            raise PycswError("", "",
                              "Unable to open configuration file")
         return parsed
 
@@ -288,7 +300,7 @@ class PycswServer(object):
             mappings_module = util.lazy_import_dependency(module_path)
         except IOError as err:
             raise PycswError(
-                self, "NoApplicableCode", "service",
+                "NoApplicableCode", "service",
                 "Could not load repository mappings: {}".format(err))
         return mappings_module
 
@@ -335,19 +347,12 @@ class PycswServer(object):
             LOGGER.debug("Repository loaded ({})".format(source))
         except Exception as err:
             raise PycswError(
-                self,
                 "NoApplicableCode",
                 "service",
                 "Could not load repository ({}): {} - {}".format(
                     source, database, err)
             )
         return repository, orm
-
-    def reconfigure_logging(self):
-        """Reconfigure the root logger"""
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-        logging.basicConfig(level=self.log_level, filename=self.log_file)
 
     def update_mappings(self, mappings):
         self.context.md_core_model = mappings.MD_CORE_MODEL
@@ -390,7 +395,7 @@ class PycswServer(object):
         try:
             python_module = util.lazy_import_dependency(python_path)
         except ImportError as err:
-            raise PycswError(self, "", "",
+            raise PycswError("", "",
                              "Invalid profile: {}".format(python_path))
         profiles = []
         for obj_type in python_module.__dict__.values():

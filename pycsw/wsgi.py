@@ -72,8 +72,8 @@ def application(environ, start_response):
         environ.get("PYCSW_CONFIG", None)
     )
     # instantiate server and reconfigure logging
-    pycsw_server = server.PycswServer(rtconfig=config)
-    pycsw_server.reconfigure_logging()
+    pycsw_server = server.PycswServer(rtconfig=config,
+                                      reconfigure_logging=True)
 
     #response, http_code, response_headers  = instance.dispatch(request)
     #response_string = "\n".join((http_code, response_headers, response))

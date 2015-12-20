@@ -452,6 +452,7 @@ def validate_4326(bbox_list):
 
     return is_valid
 
+
 def lazy_import_dependency(python_path, type_=None):
     the_module = importlib.import_module(python_path)
     result = the_module
@@ -459,3 +460,10 @@ def lazy_import_dependency(python_path, type_=None):
         the_class = getattr(the_module, type_)
         result = the_class
     return result
+
+
+def reconfigure_logging(log_level=None, log_file=None):
+    """Reconfigure the root logger"""
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(level=log_level, filename=log_file)
