@@ -8,11 +8,20 @@ from pycsw.core import util
 
 LOGGER = logging.getLogger(__name__)
 
+# Exception codes defined in OGC standard Web Services
+# Common v1.0 (OGC 05-008)
+OPERATION_NOT_SUPPORTED = "OperationNotSupported"
+MISSING_PARAMETER_VALUE = "MissingParameterValue"
+INVALID_PARAMETER_VALUE = "InvalidParameterValue"
+VERSION_NEGOTIATION_FAILED = "VersionNegotiationFailed"
+INVALID_UPDATE_SEQUENCE = "InvalidUpdateSequence"
+NO_APPLICABLE_CODE = "NoApplicableCode"
+
 
 class PycswError(Exception):
     """A base class for all pycsw exceptions"""
 
-    def __init__(self, code, locator, text):
+    def __init__(self, code, locator=None, text=None):
         self.code = code
         self.locator = locator
         self.text = text
