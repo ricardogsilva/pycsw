@@ -30,6 +30,7 @@ pycsw |release| Documentation
    odc
    ckan
    testing
+   api
    tools
    support
    contributing

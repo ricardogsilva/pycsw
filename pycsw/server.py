@@ -30,6 +30,34 @@
 #
 # =================================================================
 
+"""Pycsw server.
+
+This module defines the :class:`PycswServer` class, which is the main entry
+point for pycsw. A typical workflow is to create a request from the existing
+wsgi environment (which is created by the webserver), create a
+:class:`PycswServer` instance with the proper configuration parameters, and
+then dispatch the request for processing:
+
+.. doctest::
+
+   >>> import os
+   >>> import logging
+   >>> import wsgiref.util
+   >>> from pycsw.core.request import PycswHttpRequest
+   >>> from pycsw.server import PycswServer
+   >>> # simulate an incoming HTTP request
+   >>> environment = {}
+   >>> wsgiref.util.setup_testing_defaults(environment)
+   >>> request = PycswHttpRequest(**environment)
+   >>> # instantiate pycsw server
+   >>> server = PycswServer(
+   ...     database=os.path.expanduser("~/dev/pycsw/records.db"),
+   ...     log_level=logging.INFO
+   ... )
+   >>> # dispatch the request
+   >>> status_code, response, response_headers = server.dispatch(request)
+"""
+
 import os
 import sys
 from time import time
@@ -52,8 +80,9 @@ from pycsw.ogc.csw import csw2, csw3
 
 from pycsw.core.option import pycsw_options
 from pycsw.core.request import PycswHttpRequest
-from pycsw.exceptions import PycswError
 from pycsw.plugins.profiles.profile import Profile
+
+from . import exceptions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -73,12 +102,19 @@ class PycswServer(object):
     def __init__(self, rtconfig=None, reconfigure_logging=True, **kwargs):
         """Pycsw server
 
-        :param env:
-        :type env: dict
-        :param rtconfig:
-        :type rtconfig:
-        :param kwargs:
+        :param rtconfig: One of several possible configuration specifications
+        :type rtconfig: str or dict
+        :param reconfigure_logging: Whether logging should be reconfigured
+            with the log_level and log_file values specified in the
+            supplied configuration
+        :type reconfigure_logging: bool
+        :param kwargs: Extra confguration values can be explicitly passed when
+            creating a server object
         :raises:
+
+        Create a new pycsw server that processes incoming requests. When
+        instantiated, the server loads its configuration from the input
+        arguments. After creation the server is ready to process requests.
         """
 
         configuration = self.get_configuration(rtconfig, **kwargs)
@@ -128,14 +164,16 @@ class PycswServer(object):
         # generate domain model
 
     def dispatch(self, request):
-        """Dispatch an incoming request for processing
+        """Dispatch an incoming request for processing.
 
-        This is the main interaction point for client code.
+        This is the main interaction point for client code. This method parses
+        the input request and determines which operation mode is being
+        requested. It then delegates processing to the appropriate mode.
 
-        :arg request:
-        :type request: PycswHttpRequest
+        :arg request: The incoming request
+        :type request: :class:`~pycsw.core.request.PycswHttpRequest`
         :return:
-        :raise:
+        :raises:
         """
 
         requested_mode = request.GET.get("mode",
@@ -152,25 +190,22 @@ class PycswServer(object):
     def dispatch_csw(self, request):
         """Dispatch the input CSW request for processing
 
-        :param request:
-        :type request:
+        :param request: The incoming CSW request
+        :type request: :class:`~pycsw.core.request.PycswHttpRequest`
         :return:
         :raise:
         """
 
-        requested_service = self._get_requested_service(request)
-        if requested_service != util.CSW_SERVICE:
-            # FIXME - look up the proper exception values
-            raise PycswError(self, None, None, None)
+        if self._get_requested_service(request) != util.CSW_SERVICE:
+            raise exceptions.PycswError(code=exceptions.NO_APPLICABLE_CODE)
         requested_version = self._get_requested_csw_version(request)
         try:
             csw_version_class_info = {
                 util.CSW_VERSION_2_0_2: ("pycsw.ogc.csw2", "Csw2"),
                 util.CSW_VERSION_3_0_0: ("pycsw.ogc.csw3", "Csw3"),
-            }[requested_version]
+            }[self._get_requested_csw_version(request)]
         except KeyError:
-            # FIXME: look up the proper code, location and text
-            raise PycswError(self, None, None, None)
+            raise exceptions.PycswError(exceptions.VERSION_NEGOTIATION_FAILED)
         csw_version_class = util.lazy_import_dependency(
             *csw_version_class_info)
         csw_interface = csw_version_class(self)
