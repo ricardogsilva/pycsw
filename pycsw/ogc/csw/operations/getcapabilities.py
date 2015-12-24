@@ -149,16 +149,6 @@ class GetCapabilities(base.OperationRequestBase):
         self.requested_sections = self._validate_sections(sections)
         # TODO: validate update_sequence
 
-    @classmethod
-    def from_request(cls, csw_version_interface, request):
-        instance = super(GetCapabilities, cls).from_request(
-            csw_version_interface, request)
-        if any(request.META["HTTP_ACCEPT"]):
-            instance.http_accept_headers = request.META.get("HTTP_ACCEPT")
-        else:
-            instance.http_accept_headers = ["text/xml"]
-        return instance
-
     def dispatch(self):
         response = self.response_base(self.csw_version_interface)
         if SERVICE_IDENTIFICATION_SECTION in self.requested_sections:

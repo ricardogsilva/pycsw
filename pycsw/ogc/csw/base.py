@@ -8,16 +8,11 @@ from ... import exceptions
 
 class CswInterface(object):
     version = None  # re-assign in child classes
+    operations = dict()
+    pycsw_server = None
 
-    def __init__(self, pycsw_server):
-        self.parent = pycsw_server
-        self.operations = {
-            util.CSW_OPERATION_GET_CAPABILITIES: ("pycsw.ogc.csw.operations."
-                                                  "getcapabilities."
-                                                  "GetCapabilities"),
-            util.CSW_OPERATION_GET_RECORDS: ("pycsw.ogc.csw.operations."
-                                             "getrecords.GetRecords"),
-        }
+    def __init__(self, pycsw_server=None):
+        self.pycsw_server = pycsw_server
 
     def dispatch(self, request):
         try:
@@ -41,6 +36,5 @@ class CswInterface(object):
             module_path, _, class_name = operation_class_path.rpartition(".")
             operation_class = util.lazy_import_dependency(module_path,
                                                           class_name)
-            operation = operation_class.from_request(self.parent, self,
-                                                     request)
+            operation = operation_class.from_request(self, request)
             return operation.dispatch()

@@ -39,7 +39,7 @@ class GetCapabilitiesCsw202Serializer(SerializerBase):
                                                        "AcceptFormats"),
             "sections": self._get_list_parameter(params, "Sections"),
             "update_sequence": params.get("updateSequence"),
-            "http_accept_headers": request.META["HTTP_ACCEPT"] or [],
+            "http_accept_headers": request.META["HTTP_ACCEPT"] or ["text/xml"],
         }
         return parsed
 

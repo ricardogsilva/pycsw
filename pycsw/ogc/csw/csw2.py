@@ -43,14 +43,28 @@ from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
 from pycsw.plugins.profiles import profile as pprofile
 import pycsw.plugins.outputschemas
-from pycsw.core import config, log, metadata, util
+from ...core import config
+from ...core import log
+from ...core import metadata
+from ...core import util
 from pycsw.ogc.fes import fes1
-from .base import CswInterface
+from . import base
 
 LOGGER = logging.getLogger(__name__)
 
 
-class Csw2(CswInterface):
+class Csw202(base.CswInterface):
+    version = "2.0.2"
+    operations = {
+        util.CSW_OPERATION_GET_CAPABILITIES: ("pycsw.ogc.csw.operations."
+                                              "getcapabilities."
+                                              "GetCapabilities"),
+        util.CSW_OPERATION_GET_RECORDS: ("pycsw.ogc.csw.operations."
+                                         "getrecords.GetRecords"),
+    }
+
+
+class OldCsw2(base.CswInterface):
     ''' CSW 2.x server '''
     version = util.CSW_VERSION_2_0_2
 
