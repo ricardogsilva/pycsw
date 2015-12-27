@@ -463,7 +463,7 @@ def lazy_import_dependency(python_path, type_=None):
 
 
 def reconfigure_logging(log_level=None, log_file=None):
-    """Reconfigure the root logger"""
+    """Reconfigure the root logger."""
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
     logging.basicConfig(level=log_level, filename=log_file)

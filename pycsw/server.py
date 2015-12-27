@@ -49,10 +49,18 @@ then dispatch the request for processing:
    >>> environment = {}
    >>> wsgiref.util.setup_testing_defaults(environment)
    >>> request = PycswHttpRequest(**environment)
+   >>> request.GET.update({
+   ...     "service": "CSW",
+   ...     "version": "2.0.2",
+   ...     "request": "GetCapabilities",
+   ... })
    >>> # instantiate pycsw server
+   >>> db_uri = "sqlite:///{}/dev/pycsw/records.db".format(
+   ...     os.path.expanduser("~"))
    >>> server = PycswServer(
-   ...     database=os.path.expanduser("~/dev/pycsw/records.db"),
-   ...     log_level=logging.INFO
+   ...     database=db_uri,
+   ...     log_level=logging.INFO,
+   ...     log_file=None
    ... )
    >>> # dispatch the request
    >>> status_code, response, response_headers = server.dispatch(request)
@@ -75,14 +83,15 @@ from pycsw.core.etree import etree
 from pycsw import oaipmh, opensearch, sru
 from pycsw.plugins.profiles import profile as pprofile
 import pycsw.plugins.outputschemas
-from pycsw.core import config, log, util
+from pycsw.core import config, log
 from pycsw.ogc.csw import csw2, csw3
 
-from pycsw.core.option import pycsw_options
-from pycsw.core.request import PycswHttpRequest
-from pycsw.plugins.profiles.profile import Profile
-
+from .core.option import pycsw_options
+from .core.request import PycswHttpRequest
+from .plugins.profiles.profile import Profile
 from . import exceptions
+from .core import util
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,11 +105,15 @@ class PycswServer(object):
     encoding = sys.getdefaultencoding()
     language = "eng"
     ogc_schemas_base = ""
-    log_level = logging.DEBUG
-    log_file = None
+    #log_level = logging.DEBUG
+    #log_file = None
 
     def __init__(self, rtconfig=None, reconfigure_logging=True, **kwargs):
-        """Pycsw server
+        """Instantiate a new Pycsw server object.
+
+        Create a new pycsw server that processes incoming requests. When
+        instantiated, the server loads its configuration from the input
+        arguments. After creation the server is ready to process requests.
 
         :param rtconfig: One of several possible configuration specifications
         :type rtconfig: str or dict
@@ -112,9 +125,6 @@ class PycswServer(object):
             creating a server object
         :raises:
 
-        Create a new pycsw server that processes incoming requests. When
-        instantiated, the server loads its configuration from the input
-        arguments. After creation the server is ready to process requests.
         """
 
         configuration = self.get_configuration(rtconfig, **kwargs)
@@ -201,15 +211,16 @@ class PycswServer(object):
         requested_version = self._get_requested_csw_version(request)
         try:
             csw_version_class_info = {
-                util.CSW_VERSION_2_0_2: ("pycsw.ogc.csw2", "Csw2"),
-                util.CSW_VERSION_3_0_0: ("pycsw.ogc.csw3", "Csw3"),
+                util.CSW_VERSION_2_0_2: ("pycsw.ogc.csw.csw2", "Csw202"),
+                util.CSW_VERSION_3_0_0: ("pycsw.ogc.csw.csw3", "Csw3"),
             }[self._get_requested_csw_version(request)]
         except KeyError:
             raise exceptions.PycswError(exceptions.VERSION_NEGOTIATION_FAILED)
         csw_version_class = util.lazy_import_dependency(
             *csw_version_class_info)
         csw_interface = csw_version_class(self)
-        LOGGER.info("Using csw_interface {}".format(csw_interface))
+        LOGGER.info("Using csw_interface for version {}".format(
+            csw_interface.version))
         return csw_interface.dispatch(request)
 
     def dispatch_sru(self, request):
@@ -314,13 +325,15 @@ class PycswServer(object):
                         parsed = self.get_configuration_from_config_parser(
                             config_parser)
                     except Exception:  # FIXME - replace with proper exception
-                        raise PycswError(
-                            "", "",
-                            "Unable to load configuration file"
+                        raise exceptions.PycswError(
+                            code=exceptions.NO_APPLICABLE_CODE,
+                            text="Unable to load configuration file"
                         )
         except IOError:
-            raise PycswError("", "",
-                             "Unable to open configuration file")
+            raise exceptions.PycswError(
+                code=exceptions.NO_APPLICABLE_CODE,
+                text="Unable to open configuration file"
+            )
         return parsed
 
     def get_mappings(self, mappings_path):
@@ -334,9 +347,11 @@ class PycswServer(object):
         try:
             mappings_module = util.lazy_import_dependency(module_path)
         except IOError as err:
-            raise PycswError(
-                "NoApplicableCode", "service",
-                "Could not load repository mappings: {}".format(err))
+            raise exceptions.PycswError(
+                code=exceptions.NO_APPLICABLE_CODE,
+                locator="service",
+                text="Could not load repository mappings: {}".format(err)
+            )
         return mappings_module
 
     def get_profiles(self, profile_names):
@@ -381,10 +396,10 @@ class PycswServer(object):
             repository = repo_class(*repo_parameters["args"])
             LOGGER.debug("Repository loaded ({})".format(source))
         except Exception as err:
-            raise PycswError(
-                "NoApplicableCode",
-                "service",
-                "Could not load repository ({}): {} - {}".format(
+            raise exceptions.PycswError(
+                code=exceptions.NO_APPLICABLE_CODE,
+                locator="service",
+                text="Could not load repository ({}): {} - {}".format(
                     source, database, err)
             )
         return repository, orm
@@ -406,7 +421,8 @@ class PycswServer(object):
                 ).group(1)
             except AttributeError:
                 # FIXME - look up the proper exception values
-                raise PycswError(self, None, None, None)
+                raise exceptions.PycswError(
+                    code=exceptions.VERSION_NEGOTIATION_FAILED)
         return version
 
     def _get_requested_service(self, request):
@@ -422,16 +438,18 @@ class PycswServer(object):
                 ).group(1)
             except AttributeError:
                 # could not find the requested service name
-                # FIXME - look up the proper exception values
-                raise PycswError(self, None, None, None)
+                raise exceptions.PycswError(
+                    code=exceptions.NO_APPLICABLE_CODE)
         return service
 
     def _probe_for_profiles(self, python_path):
         try:
             python_module = util.lazy_import_dependency(python_path)
         except ImportError as err:
-            raise PycswError("", "",
-                             "Invalid profile: {}".format(python_path))
+            raise exceptions.PycswError(
+                code=exceptions.NO_APPLICABLE_CODE,
+                text="Invalid profile: {}".format(python_path)
+            )
         profiles = []
         for obj_type in python_module.__dict__.values():
             try:

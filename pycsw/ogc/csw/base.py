@@ -16,11 +16,11 @@ class CswInterface(object):
 
     def dispatch(self, request):
         try:
-            name = request.GET.get("request", request.POST["request"])
+            name = request.GET.get("request") or request.POST["request"]
         except KeyError:
-            for op, op_class_path in self.operations.items():
-                if request.body.find(op.name) != -1:
-                    name = op
+            for op_name, op_class_path in self.operations.items():
+                if request.body.find(op_name) != -1:
+                    name = op_name
                     break
             else:  # for loop ran until the end, we have no operation
                 raise exceptions.PycswError(

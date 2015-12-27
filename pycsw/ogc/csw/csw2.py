@@ -54,7 +54,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Csw202(base.CswInterface):
-    version = "2.0.2"
+    version = util.CSW_VERSION_2_0_2
     operations = {
         util.CSW_OPERATION_GET_CAPABILITIES: ("pycsw.ogc.csw.operations."
                                               "getcapabilities."

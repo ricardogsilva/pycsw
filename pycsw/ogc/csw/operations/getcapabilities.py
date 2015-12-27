@@ -164,7 +164,7 @@ class GetCapabilities(base.OperationRequestBase):
         return response
 
     def get_service_identification(self):
-        pycsw_server = self.csw_version_interface.parent
+        pycsw_server = self.csw_version_interface.pycsw_server
         return {
             "title": pycsw_server.identification_title,
             "abstract": pycsw_server.identification_abstract,
@@ -176,7 +176,7 @@ class GetCapabilities(base.OperationRequestBase):
         }
 
     def get_service_provider(self):
-        pycsw_server = self.csw_version_interface.parent
+        pycsw_server = self.csw_version_interface.pycsw_server
         return {
             "provider_name": pycsw_server.provider_name,
             "provider_url": pycsw_server.provider_url,
