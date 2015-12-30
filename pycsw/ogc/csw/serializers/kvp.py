@@ -16,7 +16,8 @@ class GetCapabilitiesCsw202Serializer(SerializerBase):
     output_formats = ["text/xml", "application/xml"]
 
     def parse_request(self, request):
-        """
+        """Parse an incoming request and return a mapping.
+
         Version 2.0.2  of the CSW standard states that the GetCapabilities
         request must implement the following parameters:
 
@@ -28,17 +29,19 @@ class GetCapabilitiesCsw202Serializer(SerializerBase):
         * updateSequence: is optional, will be parsed here
 
         :param request:
+        :type request:
         :return:
         """
         params = request.GET if any(request.GET) else request.POST
         parsed = {
             "request": params.get("request"),
+            "service": params.get("service"),
             "accept_versions": self._get_list_parameter(params,
-                                                        "AcceptVersions"),
+                                                        "acceptversions"),
             "accept_formats": self._get_list_parameter(params,
-                                                       "AcceptFormats"),
-            "sections": self._get_list_parameter(params, "Sections"),
-            "update_sequence": params.get("updateSequence"),
+                                                       "acceptformats"),
+            "sections": self._get_list_parameter(params, "sections"),
+            "update_sequence": params.get("updatesequence"),
             "http_accept_headers": request.META["HTTP_ACCEPT"] or ["text/xml"],
         }
         return parsed

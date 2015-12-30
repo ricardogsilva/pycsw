@@ -49,7 +49,8 @@ class PycswHttpRequest(object):
         except ValueError:
             content_length = 0
         headers["HTTP_CONTENT_LENGTH"] = content_length
-        headers["HTTP_ACCEPT"] = [word.strip() for word in
-                                  headers.get("HTTP_ACCEPT", "").split(",")]
+        accept_headers = [word.strip() for word in
+                          headers.get("HTTP_ACCEPT", "").split(",")]
+        headers["HTTP_ACCEPT"] = accept_headers if any(accept_headers) else []
         return headers
 
