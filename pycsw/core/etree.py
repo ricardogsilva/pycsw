@@ -29,3 +29,5 @@
 # =================================================================
 
 from lxml import etree
+
+validating_parser = etree.XMLParser(resolve_entities=False)

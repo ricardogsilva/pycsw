@@ -86,6 +86,7 @@ import pycsw.plugins.outputschemas
 from pycsw.core import config, log
 from pycsw.ogc.csw import csw2, csw3
 
+from .core import etree
 from .core.option import pycsw_options
 from .core.request import PycswHttpRequest
 from .plugins.profiles.profile import Profile
@@ -424,6 +425,61 @@ class PycswServer(object):
                 raise exceptions.PycswError(
                     code=exceptions.VERSION_NEGOTIATION_FAILED)
         return version
+
+    def _new_get_requested_csw_versions(self, request):
+        """Scan the input request and retrieve the requested CSW versions.
+
+        * If the requested operation is a GetCapabilities, then the
+          *AcceptVersions* parameter might have been supplied.
+        * Otherwise, if the request features any other operation, the
+          *version* parameter must have been supplied
+        """
+        raise NotImplementedError
+
+    def _get_csw_accept_versions(self, request):
+        try:
+            requested_versions = request.GET.get(
+                "acceptversions", request.POST["acceptversions"])
+            accept_versions = requested_versions.split(",")
+        except KeyError:
+            accept_versions = self._get_csw_accept_versions_xml(request)
+
+    def _get_csw_accept_versions_xml(self, request):
+        request_element = etree.etree.fromstring(
+            text=request.body, parser=etree.validating_parser)
+        versions = request_element.xpath(
+            "./ows:AcceptVersions/ows:Version/text()",
+            namespaces=self.context.namespaces
+        )
+        return versions
+
+    def _get_csw_operation_and_versions(self, request):
+        try:
+            operation = request.GET.get("request", request.POST["request"])
+            if operation == util.CSW_OPERATION_GET_CAPABILITIES:
+                requested_versions = request.GET.get(
+                    "acceptversions",
+                    request.POST.get("acceptversions", "")
+                )
+            else:
+                requested_versions = request.GET.get(
+                    "version",
+                    request.POST.get("version", "")
+                )
+            versions = [v for v in requested_versions.split(",") if v != ""]
+        except KeyError:
+            request_element = etree.etree.fromstring(
+                text=request.body, parser=etree.validating_parser)
+            qname = etree.etree.QName(request_element)
+            operation = qname.localname
+            if operation == util.CSW_OPERATION_GET_CAPABILITIES:
+                versions = request_element.xpath(
+                    "./ows:AcceptVersions/ows:Version/text()",
+                    namespaces=self.context.namespaces
+                )
+            else:
+                versions = [request_element.get("version")] or []
+        return operation, versions
 
     def _get_requested_service(self, request):
         service_string = "service"

@@ -401,6 +401,7 @@ def bind_url(url):
             binder = '&'
     return '%s%s' % (url, binder)
 
+
 def ip_in_network_cidr(ip, net):
     """decipher whether IP is within CIDR range"""
     ipaddr = int(''.join([ '%02x' % int(x) for x in ip.split('.') ]), 16)
@@ -408,6 +409,7 @@ def ip_in_network_cidr(ip, net):
     netaddr = int(''.join([ '%02x' % int(x) for x in netstr.split('.') ]), 16)
     mask = (0xffffffff << (32 - int(bits))) & 0xffffffff
     return (ipaddr & mask) == (netaddr & mask)
+
 
 def ipaddress_in_whitelist(ipaddress, whitelist):
     """
@@ -429,6 +431,7 @@ def ipaddress_in_whitelist(ipaddress, whitelist):
                     if ipaddress.startswith(white.split('*')[0]):
                         return True
     return False
+
 
 def sniff_table(table):
     """Checks whether repository.table is a schema namespaced"""
