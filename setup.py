@@ -29,7 +29,7 @@
 # =================================================================
 
 import os
-from distutils.core import setup
+from setuptools import setup
 import pycsw
 
 
@@ -79,9 +79,8 @@ def get_package_data(location='.', forced_dir=None):
         for root, dirs, files in os.walk(filepath):
             if len(files) > 0:
                 # find all the XML Schema documents
-                xsds = filter(lambda x: x.find('.xsd') != -1, files)
-                catalog_xml = filter(lambda x: x.find('catalog.xml') != -1,
-                                     files)
+                xsds = [f for f in files if f.find(".xsd") != -1]
+                catalog_xml = [f for f in files if f.find("catalog.xml") != -1]
                 xsds.extend(catalog_xml)
                 if len(xsds) > 0:
                     if ploc not in package_data:  # set key
