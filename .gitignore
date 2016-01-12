@@ -9,9 +9,15 @@ MANIFEST
 # testing artifacts
 tests/index.html
 tests/results
+.tox/*
+.eggs/*
 
 # test configurations
 /default.cfg
 
 # test repositories
 data
+
+# editor files
+*.un~
+.idea/*
