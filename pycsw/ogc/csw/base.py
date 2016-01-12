@@ -14,6 +14,16 @@ class CswInterface(object):
     def __init__(self, pycsw_server=None):
         self.pycsw_server = pycsw_server
 
+    def dispatch_kvp(self, kvp_params):
+        operation_name = kvp_params["request"]
+        raise NotImplementedError
+
+    def dispatch_xml(self, xml_element):
+        raise NotImplementedError
+
+    def dispatch_json(self, json_element):
+        raise NotImplementedError
+
     def dispatch(self, request):
         try:
             name = request.GET.get("request") or request.POST["request"]

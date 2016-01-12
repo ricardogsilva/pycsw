@@ -99,15 +99,22 @@ LOGGER = logging.getLogger(__name__)
 
 class PycswServer(object):
 
-    accept_versions = [util.CSW_VERSION_2_0_2, util.CSW_VERSION_3_0_0]
-    # defaulting to 2.0.2 while 3.0.0 is not out
-    csw_version = util.CSW_VERSION_2_0_2
+    # custom application profiles may extend pycsw with additional:
+    # * content_types
+    # * operational_modes
+    operational_modes = {
+        "csw": "pycsw.core.servermodes.csw.CswMode",
+        "sru": "pycsw.core.servermodes.sru.SruMode",
+        "opensearch": "pycsw.core.servermodes.opensearch.OpenSearchMode",
+    }
+    content_types = {
+        "kvp": "pycsw.core.contenttypes.get_kvp_data",
+        "xml": "pycsw.core.contenttypes.get_xml_data",
+    }
     repository = None
     encoding = sys.getdefaultencoding()
     language = "eng"
     ogc_schemas_base = ""
-    #log_level = logging.DEBUG
-    #log_file = None
 
     def __init__(self, rtconfig=None, reconfigure_logging=True, **kwargs):
         """Instantiate a new Pycsw server object.
@@ -177,78 +184,43 @@ class PycswServer(object):
     def dispatch(self, request):
         """Dispatch an incoming request for processing.
 
-        This is the main interaction point for client code. This method parses
-        the input request and determines which operation mode is being
-        requested. It then delegates processing to the appropriate mode.
+        Pycsw will try to parse the request using the defined content-type
+        processors. If successful, the data that constitutes the request
+        is extracted and dispatched to the appropriate processing mode.
+
+        The default content-types available are:
+
+        * KVP, for GET and POST requests. POST requests must specify the
+          application/www-form-urlencoded content-type.
+        * XML for POST requests. Accepted content-types are 'application/xml'
+          and 'text/xml'.
+
+        Custom application profiles may implement additional content-types.
 
         :arg request: The incoming request
         :type request: :class:`~pycsw.core.request.PycswHttpRequest`
         :return:
-        :raises:
+        :raises: PycswError
         """
 
-        requested_mode = request.GET.get("mode",
-                                         request.POST.get("mode", "csw"))
-        LOGGER.info("dispatching mode {}".format(requested_mode))
-        dispatch_method = {
-            "csw": self.dispatch_csw,
-            "sru": self.dispatch_sru,
-            "oaipmh": self.dispatch_oaipmh,
-            "opensearch": self.dispatch_opensearch,
-        }.get(requested_mode)
-        return dispatch_method(request)
-
-    def dispatch_csw(self, request):
-        """Dispatch the input CSW request for processing
-
-        :param request: The incoming CSW request
-        :type request: :class:`~pycsw.core.request.PycswHttpRequest`
-        :return:
-        :raise:
-        """
-
-        if self._get_requested_service(request) != util.CSW_SERVICE:
-            raise exceptions.PycswError(code=exceptions.NO_APPLICABLE_CODE)
-        requested_version = self._get_requested_csw_version(request)
-        try:
-            csw_version_class_info = {
-                util.CSW_VERSION_2_0_2: ("pycsw.ogc.csw.csw2", "Csw202"),
-                util.CSW_VERSION_3_0_0: ("pycsw.ogc.csw.csw3", "Csw3"),
-            }[self._get_requested_csw_version(request)]
-        except KeyError:
-            raise exceptions.PycswError(exceptions.VERSION_NEGOTIATION_FAILED)
-        csw_version_class = util.lazy_import_dependency(
-            *csw_version_class_info)
-        csw_interface = csw_version_class(self)
-        LOGGER.info("Using csw_interface for version {}".format(
-            csw_interface.version))
-        return csw_interface.dispatch(request)
-
-    def dispatch_sru(self, request):
-        """Dispatch the input SRU request for processing
-
-        :param request:
-        :type request:
-        :return:
-        :raise:
-        """
-        sru_wrapper_class = util.lazy_import_dependency("pycsw.sru", "Sru")
-        sru = sru_wrapper_class(self.context)
-        query_dict = request.GET.copy()
-        query_dict.update(request.POST)
-        new_query_dict = sru.request_sru2csw(query_dict)
-        new_request = PycswHttpRequest(**request.META)
-        new_request.GET = new_query_dict
-        new_request.POST = {}
-        csw_result = self.dispatch_csw(new_request)
-        sru.response_csw2sru()
-        raise NotImplementedError
-
-    def dispatch_oaipmh(self, request):
-        raise NotImplementedError
-
-    def dispatch_opensearch(self, request):
-        raise NotImplementedError
+        for name, path in self.content_types.items():
+            content_type_handler = util.lazy_import_dependency(path)
+            try:
+                request_data, mode_name = content_type_handler(request)
+                mode_class_path = self.operational_modes[mode_name]
+            except exceptions.PycswError:  # invalid content-type
+                continue  # try the next content-type handler
+            except KeyError:  # invalid mode_name
+                raise exceptions.PycswError(exceptions.NO_APPLICABLE_CODE)
+            else:
+                module, sep, type_ = mode_class_path.rpartition(".")
+                mode_handler = util.lazy_import_dependency(module, type_)
+                operation_mode = mode_handler(pycsw_server=self)
+                response = operation_mode.dispatch(request_data)
+                break
+        else:  # none of the available content-types fits the request
+            raise exceptions.PycswError(exceptions.NO_APPLICABLE_CODE)
+        return response
 
     def get_configuration(self, runtime_settings=None, **kwargs):
         """Load pycsw configuration from multiple input sources
@@ -408,95 +380,6 @@ class PycswServer(object):
     def update_mappings(self, mappings):
         self.context.md_core_model = mappings.MD_CORE_MODEL
         self.context.refresh_dc(mappings.MD_CORE_MODEL)
-
-    def _get_requested_csw_version(self, request):
-        version_string = "version"
-        version = request.GET.get(version_string,
-                                  request.POST.get(version_string))
-        if version is None:  # get the version from the body of the request
-            re_module = util.lazy_import_dependency("re")
-            try:
-                version = re_module.search(
-                    r'{}="(\d\.\d\.\d)"'.format(version_string),
-                    request.body
-                ).group(1)
-            except AttributeError:
-                # FIXME - look up the proper exception values
-                raise exceptions.PycswError(
-                    code=exceptions.VERSION_NEGOTIATION_FAILED)
-        return version
-
-    def _new_get_requested_csw_versions(self, request):
-        """Scan the input request and retrieve the requested CSW versions.
-
-        * If the requested operation is a GetCapabilities, then the
-          *AcceptVersions* parameter might have been supplied.
-        * Otherwise, if the request features any other operation, the
-          *version* parameter must have been supplied
-        """
-        raise NotImplementedError
-
-    def _get_csw_accept_versions(self, request):
-        try:
-            requested_versions = request.GET.get(
-                "acceptversions", request.POST["acceptversions"])
-            accept_versions = requested_versions.split(",")
-        except KeyError:
-            accept_versions = self._get_csw_accept_versions_xml(request)
-
-    def _get_csw_accept_versions_xml(self, request):
-        request_element = etree.etree.fromstring(
-            text=request.body, parser=etree.validating_parser)
-        versions = request_element.xpath(
-            "./ows:AcceptVersions/ows:Version/text()",
-            namespaces=self.context.namespaces
-        )
-        return versions
-
-    def _get_csw_operation_and_versions(self, request):
-        try:
-            operation = request.GET.get("request", request.POST["request"])
-            if operation == util.CSW_OPERATION_GET_CAPABILITIES:
-                requested_versions = request.GET.get(
-                    "acceptversions",
-                    request.POST.get("acceptversions", "")
-                )
-            else:
-                requested_versions = request.GET.get(
-                    "version",
-                    request.POST.get("version", "")
-                )
-            versions = [v for v in requested_versions.split(",") if v != ""]
-        except KeyError:
-            request_element = etree.etree.fromstring(
-                text=request.body, parser=etree.validating_parser)
-            qname = etree.etree.QName(request_element)
-            operation = qname.localname
-            if operation == util.CSW_OPERATION_GET_CAPABILITIES:
-                versions = request_element.xpath(
-                    "./ows:AcceptVersions/ows:Version/text()",
-                    namespaces=self.context.namespaces
-                )
-            else:
-                versions = [request_element.get("version")] or []
-        return operation, versions
-
-    def _get_requested_service(self, request):
-        service_string = "service"
-        service = request.GET.get(service_string,
-                                  request.POST.get(service_string))
-        if service is None:  # get the service from the body of the request
-            re_module = util.lazy_import_dependency("re")
-            try:
-                service = re_module.search(
-                    r'{}="(.*?)"'.format(service_string),
-                    request.body
-                ).group(1)
-            except AttributeError:
-                # could not find the requested service name
-                raise exceptions.PycswError(
-                    code=exceptions.NO_APPLICABLE_CODE)
-        return service
 
     def _probe_for_profiles(self, python_path):
         try:
