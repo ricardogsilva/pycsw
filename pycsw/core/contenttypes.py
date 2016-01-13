@@ -1,4 +1,4 @@
-"""CSW operational mode for pycsw"""
+"""Content-type handlers for pycsw."""
 
 import logging
 
