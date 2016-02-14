@@ -13,11 +13,17 @@ class ModeBase(object):
         # become unnecessary.
         self.server = pycsw_server
 
+    def dispatch(self, request_data):
+        raise NotImplementedError
+
+    # FIXME - remove this method
     def dispatch_kvp(self, kvp_params):
         raise NotImplementedError
 
+    # FIXME - remove this method
     def dispatch_xml(self, xml_element):
         raise NotImplementedError
 
+    # FIXME - remove this method
     def dispatch_json(self, json_element):
         raise NotImplementedError

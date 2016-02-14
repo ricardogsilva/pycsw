@@ -208,6 +208,13 @@ class PycswServer(object):
             try:
                 request_data, mode_name = content_type_handler(request)
                 mode_class_path = self.operational_modes[mode_name]
+
+                request_data = content_type_handler.get_request_data(request)
+                operation_mode = content_type_handler.get_operation_mode(
+                    request_data)
+
+
+
             except exceptions.PycswError:  # invalid content-type
                 continue  # try the next content-type handler
             except KeyError:  # invalid mode_name

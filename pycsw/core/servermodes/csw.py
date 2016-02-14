@@ -19,6 +19,9 @@ class CswMode(base.ModeBase):
     # defaulting to 2.0.2 while 3.0.0 is not out
     default_version = util.CSW_VERSION_2_0_2
 
+    def dispatch(self):
+        raise NotImplementedError
+
     def dispatch_kvp(self, kvp_params):
         """Dispatch the input KVP request for processing."""
         self.validate_service(kvp_params.get("service"))
@@ -46,13 +49,13 @@ class CswMode(base.ModeBase):
 
     def dispatch_xml(self, xml_element):
         """Dispatch the input XML request for processing."""
-        # TODO: validate the service
+        self.validate_service(xml_element.get("service"))
         qname = etree.etree.QName(xml_element)
         operation = qname.localname
         if operation == util.CSW_OPERATION_GET_CAPABILITIES:
             versions = xml_element.xpath(
-                    "./ows:AcceptVersions/ows:Version/text()",
-                    namespaces=self.server.context.namespaces
+                "./ows:AcceptVersions/ows:Version/text()",
+                namespaces=self.server.context.namespaces
             )
             versions = versions or [self.default_version]
             version = self.negotiate_version(versions)
@@ -61,8 +64,8 @@ class CswMode(base.ModeBase):
                 version = xml_element.attrib["version"]
             except KeyError:
                 raise exceptions.PycswError(
-                        code=exceptions.MISSING_PARAMETER_VALUE,
-                        locator="version"
+                    code=exceptions.MISSING_PARAMETER_VALUE,
+                    locator="version"
                 )
             else:
                 self.validate_version(version)
