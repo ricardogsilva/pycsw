@@ -52,14 +52,14 @@
 # http://localhost:8000/
 #
 
-from StringIO import StringIO
+import logging
 import os
 import sys
 import urlparse
-import logging
+from StringIO import StringIO
 
 from pycsw import server
-from pycsw.core.request import PycswHttpRequest
+from pycsw.request import PycswHttpRequest
 
 LOGGER = logging.getLogger(__name__)
 PYCSW_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

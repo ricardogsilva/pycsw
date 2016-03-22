@@ -43,7 +43,7 @@ then dispatch the request for processing:
    >>> import os
    >>> import logging
    >>> import wsgiref.util
-   >>> from pycsw.core.request import PycswHttpRequest
+   >>> from pycsw.request import PycswHttpRequest
    >>> from pycsw.server import PycswServer
    >>> # simulate an incoming HTTP request
    >>> environment = {}
@@ -66,33 +66,27 @@ then dispatch the request for processing:
    >>> status_code, response, response_headers = server.dispatch(request)
 """
 
+import ConfigParser
+import io
+import json
+import logging
 import os
 import sys
-from time import time
-from urllib2 import quote, unquote
 import urlparse
 from cStringIO import StringIO
-import ConfigParser
-import logging
-import json
-import codecs
-import importlib
-import io
+from time import time
+from urllib2 import quote, unquote
 
-from pycsw.core.etree import etree
-from pycsw import oaipmh, opensearch, sru
-from pycsw.plugins.profiles import profile as pprofile
 import pycsw.plugins.outputschemas
+from pycsw import oaipmh, opensearch, sru
 from pycsw.core import config, log
 from pycsw.ogc.csw import csw2, csw3
-
-from .core import etree
-from .core.option import pycsw_options
-from .core.request import PycswHttpRequest
-from .plugins.profiles.profile import Profile
+from pycsw.plugins.profiles import profile as pprofile
 from . import exceptions
+from .core import etree
 from .core import util
-
+from .core.option import pycsw_options
+from .plugins.profiles.profile import Profile
 
 LOGGER = logging.getLogger(__name__)
 
