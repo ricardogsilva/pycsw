@@ -13,5 +13,5 @@ def get_parser(encoding="utf-8", schema_path=None):
 
     schema = etree.XMLSchema(file=schema_path) if schema_path else None
     parser = etree.XMLParser(encoding=encoding, resolve_entities=False,
-                             XMLSchema_schema=schema)
+                             schema=schema)
     return parser
