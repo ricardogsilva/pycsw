@@ -26,6 +26,7 @@ setup(
     url="http://pycsw.org/",
     install_requires=[
         "lxml==3.5.0",
+        "werkzeug==0.11.5",
     ],
     packages=find_packages(),
     entry_points={

@@ -58,11 +58,21 @@ import sys
 import urlparse
 from StringIO import StringIO
 
+from werkzeug.wrappers import Request
+from werkzeug.wrappers import Response
+
 from pycsw import server
-from pycsw.request import PycswHttpRequest
 
 LOGGER = logging.getLogger(__name__)
 PYCSW_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@Request.application
+def application(request):
+    # create PycswHttpRequest from werkzeug request
+    # instantiate server and load config
+    # dispatch request for processing
+    # return a response
 
 
 def application(environ, start_response):

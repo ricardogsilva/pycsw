@@ -15,3 +15,9 @@ tests/results
 
 # test repositories
 data
+
+# editor artifacts
+.idea
+
+# pytest artifacts
+.cache

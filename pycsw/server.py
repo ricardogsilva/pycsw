@@ -43,7 +43,7 @@ then dispatch the request for processing:
    >>> import os
    >>> import logging
    >>> import wsgiref.util
-   >>> from pycsw.request import PycswHttpRequest
+   >>> from pycsw.httprequest import PycswHttpRequest
    >>> from pycsw.server import PycswServer
    >>> # simulate an incoming HTTP request
    >>> environment = {}
