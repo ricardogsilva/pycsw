@@ -61,7 +61,7 @@ from StringIO import StringIO
 from werkzeug.wrappers import Request
 from werkzeug.wrappers import Response
 
-from pycsw import server
+from pycsw import oldserver
 
 LOGGER = logging.getLogger(__name__)
 PYCSW_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,8 +82,8 @@ def application(environ, start_response):
         environ.get("PYCSW_CONFIG", None)
     )
     # instantiate server and reconfigure logging
-    pycsw_server = server.PycswServer(rtconfig=config,
-                                      reconfigure_logging=True)
+    pycsw_server = oldserver.PycswServer(rtconfig=config,
+                                         reconfigure_logging=True)
 
     #response, http_code, response_headers  = instance.dispatch(request)
     #response_string = "\n".join((http_code, response_headers, response))
@@ -116,7 +116,7 @@ def old_application(env, start_response):
 
     env['local.app_root'] = PYCSW_ROOT
 
-    csw = server.Csw(config, env)
+    csw = oldserver.Csw(config, env)
 
     gzip = False
     if ('HTTP_ACCEPT_ENCODING' in env and
