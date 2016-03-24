@@ -13,11 +13,20 @@ class CswService(base.Service):
     _name = "CSW"
     operations = []
 
-    def __init__(self):
+    def __init__(self, enabled, **configuration_keys):
+        super().__init__(enabled)
         # load config
         # load eventual plugins
         # lazy load operations
         pass
+
+    def _configure_distributed_search(self, **configuration_keys):
+        config = configuration_keys.get("distributed_search", {})
+        if config.get("enabled", False):
+            # load the rest of the config
+            pass
+        else:
+            pass  # do not enable distributed search
 
     @property
     def enabled_operations(self):
