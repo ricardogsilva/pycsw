@@ -4,6 +4,8 @@ logger = logging.getLogger(__name__)
 
 
 class Service:
+    """Base class for all pycsw services."""
+
     _name = ""
     _version = ""
 

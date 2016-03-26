@@ -5,7 +5,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# example config
+simpler_config = {
+    "encoding": "utf-8",
+    "services": [
+        "pycsw.services.csw.defaults.csw202.csw202_service",
+    ]
+}
 example_config = {
     "encoding": "utf-8",
     "services": {
@@ -20,11 +25,18 @@ example_config = {
             "operations": {
                 "GetCapabilities": {
                     "enabled": True,
+                    "allowed_http_verbs": ["GET", "POST"],
                 },
                 "GetRecords": {
                     "enabled": True,
+                    "allowed_http_verbs": ["GET", "POST"],
                 },
             },
+            "key_value_pair_configurations": [
+                {
+                    "name": "OGC CSW kvp",
+                },
+            ],
             "content_types": [
                 {
                     "media_type": "application/xml",
@@ -34,8 +46,9 @@ example_config = {
                         "dct": "http://purl.org/dc/terms/",
                         "ows": "http://www.opengis.net/ows",
                     },
-                    "schemas": {
-                        "http://www.opengis.net/cat/csw/2.0.2": {
+                    "schemas": [
+                        {
+                            "namespace":"http://www.opengis.net/cat/csw/2.0.2",
                             "type_names": ["csw:Record"],
                             "record_mapping": {
                                 "title": "dc:title",
@@ -92,8 +105,10 @@ example_config = {
                                 ],
                             },
                         },
-                        "http://www.isotc211.org/2005/gmd": {},  # the ISO AP plugin would add stuff here
-                    },
+                        {
+                            "namespace": "http://www.isotc211.org/2005/gmd",  # the ISO AP plugin would add stuff here
+                        },
+                    ]
                 }
             ],
             "repositories": {},
