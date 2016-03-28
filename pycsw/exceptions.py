@@ -2,10 +2,6 @@
 
 import logging
 
-from pycsw.core.etree import etree
-from pycsw.core import util
-
-
 LOGGER = logging.getLogger(__name__)
 
 # Exception codes defined in OGC standard Web Services
@@ -21,10 +17,7 @@ NO_APPLICABLE_CODE = "NoApplicableCode"
 class PycswError(Exception):
     """A base class for all pycsw exceptions"""
 
-    def __init__(self, code, locator=None, text=None):
-        self.code = code
-        self.locator = locator
-        self.text = text
+    pass
 
     # FIXME - This functionality should be provided by the code that catches the error
     #def to_xml(self):
@@ -58,6 +51,12 @@ class PycswError(Exception):
     #    exception_text.text = self.text
     #    return node
 
+class CswError(PycswError):
+
+    def __init__(self, code, locator=None, text=None):
+        self.code = code
+        self.locator = locator
+        self.text = text
+
     def __str__(self):
         return ("{0.code} - {0.locator}: {0.text}".format(self))
-

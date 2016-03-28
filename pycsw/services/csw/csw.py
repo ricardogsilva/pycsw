@@ -1,9 +1,7 @@
 import logging
 
-from lxml import etree
-
-from pycsw.services import base
-from pycsw.httprequest import HttpVerb
+from ... import exceptions
+from .. import base
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +23,79 @@ class CswDistributedSearch:
         )
 
 
-class CswContentTypeProcessor:
-    media_type = ""
+class CswRequestProcessor:
     namespaces = {}
-    accepted_schemas = []
+    schemas = []
 
-    def __init__(self, media_type, namespaces=None, accepted_schemas=None):
+    def __init__(self, namespaces=None, schemas=None):
+        self.namespaces = namespaces.copy() or {}
+        self.schemas = schemas or []
+
+    def accepts_request(self, request):
+        """Return True if the incoming request can be processed.
+
+        Reimplement this method in child classes.
+
+        Parameters
+        ----------
+        request: pycsw.httprequest.PycswHttpRequest
+            The incoming request object.
+
+        Returns
+        -------
+        bool
+            Whether this processor can process the request or not.
+
+        """
+
+        raise NotImplementedError
+
+
+class CswKvpProcessor(CswRequestProcessor):
+    name = ""
+
+    def __init__(self, name, namespaces=None, schemas=None):
+        self.name = name
+        super().__init__(namespaces=namespaces, schemas=schemas)
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_config(cls, **config):
+        schemas = [CswSchemaProcessor.from_config(**schema_config) for
+                   schema_config in config.get("schemas", [])]
+        return cls(
+            name=config["name"],
+            namespaces=config.get("namespaces"),
+            schemas=schemas,
+        )
+
+    def accepts_request(self, request):
+        schema_to_use = None
+        for schema in self.schemas:
+            try:
+                requested_service = schema.get_request_service(request)
+                requested_version = schema.get_request_version(request)
+                schema_to_use = schema
+                break
+            except exceptions.CswError:
+                logger.debug("Schema {0.namespace} cannot accept "
+                             "request".format(schema))
+        else:
+            logger.debug("Processor {} cannot accept request.".format(self))
+        return schema_to_use
+
+
+class CswContentTypeProcessor(CswRequestProcessor):
+    media_type = ""
+
+    def __init__(self, media_type, namespaces=None, schemas=None):
         self.media_type = media_type
-        self.namespaces = namespaces or {}
-        self.accepted_schemas = accepted_schemas or []
+        super().__init__(namespaces=namespaces, schemas=schemas)
+
+    def __str__(self):
+        return self.media_type
 
     @classmethod
     def from_config(cls, **config):
@@ -42,10 +104,11 @@ class CswContentTypeProcessor:
         return cls(
             media_type=config["media_type"],
             namespaces=config.get("namespaces"),
-            accepted_schemas=schemas,
+            schemas=schemas,
         )
 
 
+# FIXME - Implement a base class for this one, independent of the CSW service
 class CswSchemaProcessor:
     namespace = ""
     type_names = []
@@ -75,9 +138,10 @@ class CswService(base.Service):
     distributed_search = CswDistributedSearch()
     operations = []
     content_types = []
+    kvp_types = []
 
     def __init__(self, enabled, distributed_search=None, operations=None,
-                 content_types=None):
+                 content_types=None, kvp_types=None):
         super().__init__(enabled)
         # load config
         # load eventual plugins
@@ -85,6 +149,7 @@ class CswService(base.Service):
         self.distributed_search = distributed_search or CswDistributedSearch()
         self.operations = operations or []
         self.content_types = content_types or []
+        self.kvp_types = kvp_types or []
 
     @classmethod
     def from_config(cls, **config):
@@ -92,43 +157,47 @@ class CswService(base.Service):
             **config.get("distributed_search", {}))
         content_types = [CswContentTypeProcessor.from_config(**c) for c
                          in config.get("content_types", [])]
+        kvp_types = [CswKvpProcessor.from_config(**c) for c
+                     in config.get("kvp_types", [])]
         return cls(
             enabled=config.get("enabled", False),
             distributed_search=distributed_search,
             content_types=content_types,
         )
 
-    @property
-    def enabled_operations(self):
-        return (op for op in self.operations if op.enabled)
+    def accepts_request(self, request):
+        """Return True if the incoming request can be processed by this service.
 
-    def get_requested_operation(self, request):
-        """Return True if the request can be processed by this service."""
-        for op in self.enabled_operations:
-            if op.can_process_request(request):
-                operation = op
+        Parameters
+        ----------
+        request: pycsw.httprequest.PycswHttpRequest
+            The incoming request object.
+
+        Returns
+        -------
+        bool
+            Whether this service can process the request or not.
+
+        """
+
+        schema_processor = False
+        for processor in (p for p in self.kvp_types + self.content_types):
+            logger.debug("Evaluating processor: {}...".format(processor))
+            schema_to_use = processor.accepts_request(request)
+            if schema_to_use is not None:
+                schema_processor = True
+                logger.debug("Processor accepts request")
                 break
+            else:
+                logger.debug("Processor cannot accept request")
         else:
-            operation = None
-        return operation
-
-    def _operation_enabled(self, operation_name):
-        """Return True if the operation is enabled."""
-        return operation_name in [op.name for op in self.enabled_operations]
-
+            logger.debug("Service {0.identifier} does not accept "
+                         "the request".format(self))
+        return schema_processor
 
 
 class Csw202Service(CswService):
-    """CSW 2.0.2 implementation
-
-    Examples
-    --------
-
-    >>> service = Csw202Service()
-    >>> operation = service.get_requested_operation(request)
-    >>> response = operation.process_request(request)
-
-    """
+    """CSW 2.0.2 implementation."""
     _version = "2.0.2"
 
 

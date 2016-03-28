@@ -21,3 +21,22 @@ class Service:
         instance = cls()
         return instance
 
+    def accepts_request(self, request):
+        """Find out if the incoming request can be processed by this service.
+
+        Reimplement this method in child classes.
+
+        Parameters
+        ----------
+        request: pycsw.httprequest.PycswHttpRequest
+            The incoming request object.
+
+        Returns
+        -------
+        pycsw.services.csw.csw.CswSchemaProcessor
+            The schema processor object that can process the request.
+
+        """
+
+        raise NotImplementedError
+
