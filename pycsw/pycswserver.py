@@ -17,7 +17,9 @@
 import logging
 
 from . import exceptions
-from .services.csw import csw
+from .services.base import ServiceContainer
+from .services.csw import cswbase
+from .services.csw import csw202
 from .services.csw.operations import base
 from .httprequest import HttpVerb
 
@@ -27,17 +29,21 @@ logger = logging.getLogger(__name__)
 class PycswServer:
     """Processes incoming HTTTP requests."""
 
-    services = []
+    _services = None
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
-        self.services = [
-            self.setup_csw202_service(),
-        ]
+        self._services = ServiceContainer(pycsw_server=self)
+        csw202_service = self.setup_csw202_service()
+        self.services.append(csw202_service)
+
+    @property
+    def services(self):
+        return self._services
 
     def setup_csw202_service(self):
         """Create the CSW version 2.0.2 service."""
-        csw_schema_processor = csw.CswSchemaProcessor(
+        csw_schema_processor = cswbase.CswSchemaProcessor(
             namespace="http://www.opengis.net/cat/csw/2.0.2",
             type_names=["csw:Record"],
             record_mapping={
@@ -103,14 +109,14 @@ class PycswServer:
 
         }
 
-        xml_content_type = csw.CswContentTypeProcessor(
+        xml_content_type = cswbase.CswContentTypeProcessor(
             media_type="application/xml",
             namespaces=ogc_namespaces,
             schemas=[
                 csw_schema_processor,
             ]
         )
-        ogc_kvp = csw.CswKvpProcessor(
+        ogc_kvp = cswbase.CswKvpProcessor(
             name="OGC KVP",
             namespaces=ogc_namespaces,
             schemas=[
@@ -122,9 +128,9 @@ class PycswServer:
             enabled=True,
         )
 
-        csw202_service = csw.Csw202Service(
+        csw202_service = csw202.Csw202Service(
             enabled=True,
-            distributed_search=csw.CswDistributedSearch(),
+            distributed_search=cswbase.CswDistributedSearch(),
             operations=[
                 get_capabilities,
             ],

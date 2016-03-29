@@ -194,12 +194,3 @@ class CswService(base.Service):
             logger.debug("Service {0.identifier} does not accept "
                          "the request".format(self))
         return schema_processor
-
-
-class Csw202Service(CswService):
-    """CSW 2.0.2 implementation."""
-    _version = "2.0.2"
-
-
-class Csw300Service(CswService):
-    _version = "3.0.0"
