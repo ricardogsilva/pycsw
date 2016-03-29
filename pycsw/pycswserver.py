@@ -17,11 +17,11 @@
 import logging
 
 from . import exceptions
-from .services.base import ServiceContainer
 from .services.csw import cswbase
 from .services.csw import csw202
 from .services.csw.operations import base
 from .httprequest import HttpVerb
+from . import utilities
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ class PycswServer:
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
-        self._services = ServiceContainer(pycsw_server=self)
+        self._services = utilities.ManagedList(manager=self,
+                                               related_name="_server")
         csw202_service = self.setup_csw202_service()
         self.services.append(csw202_service)
 
@@ -156,7 +157,7 @@ class PycswServer:
 
         Returns
         -------
-        service: pycsw.services.base or None
+        service: pycsw.services.servicebase or None
             The service object that can process the request.
 
         Raises
