@@ -1,5 +1,7 @@
 import logging
 
+from .. import utilities
+
 logger = logging.getLogger(__name__)
 
 
@@ -10,9 +12,24 @@ class Service:
     _version = ""
     _server = None
 
-    def __init__(self, enabled, server=None):
+    _content_type_processors = None
+    _kvp_processors = None
+
+    def __init__(self, enabled):
         self.enabled = enabled
-        self._server = server
+        self._server = None
+        self._content_type_processors = utilities.ManagedList(
+            manager=self, related_name="_service")
+        self._kvp_processors = utilities.ManagedList(
+            manager=self, related_name="_service")
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def version(self):
+        return self._version
 
     @property
     def identifier(self):
@@ -23,13 +40,21 @@ class Service:
         """Return the server object that manages this service."""
         return self._server
 
+    @property
+    def content_type_processors(self):
+        return self._content_type_processors
+
+    @property
+    def kvp_processors(self):
+        return self._kvp_processors
+
     @classmethod
     def from_config(cls, **config_keys):
         instance = cls()
         return instance
 
-    def accepts_request(self, request):
-        """Find out if the incoming request can be processed by this service.
+    def get_schema_processor(self, request):
+        """Get a suitable schema processor for the request
 
         Reimplement this method in child classes.
 
@@ -40,7 +65,7 @@ class Service:
 
         Returns
         -------
-        pycsw.services.csw.cswbase.CswSchemaProcessor
+        pycsw.services.csw.cswbase.OgcSchemaProcessor
             The schema processor object that can process the request.
 
         """
@@ -50,14 +75,25 @@ class Service:
 
 class RequestProcessor:
     namespaces = {}
-    schemas = []
+    _schemas = None
+    _service = None
 
-    def __init__(self, namespaces=None, schemas=None):
+    def __init__(self, namespaces=None):
         self.namespaces = namespaces.copy() or {}
-        self.schemas = schemas or []
+        self._schemas = utilities.ManagedList(
+            manager=self, related_name="_request_processor")
+        self._service = None
 
-    def accepts_request(self, request):
-        """Return True if the instance is able to process the request.
+    @property
+    def service(self):
+        return self._service
+
+    @property
+    def schemas(self):
+        return self._schemas
+
+    def get_schema_processor(self, request):
+        """Get a suitable schema processor for the request
 
         Reimplement this method in child classes.
 
@@ -68,8 +104,9 @@ class RequestProcessor:
 
         Returns
         -------
-        bool
-            Whether this schema_processor is able to process the request.
+        pycsw.services.csw.cswbase.OgcSchemaProcessor
+            The schema processor object that can process the request.
+
         """
 
         raise NotImplementedError
@@ -77,9 +114,15 @@ class RequestProcessor:
 
 class SchemaProcessor:
     namespace = ""
+    _request_processor = None
 
     def __init__(self, namespace):
         self.namespace = namespace
+        self._request_processor = None
+
+    @property
+    def request_processor(self):
+        return self._request_processor
 
     def accepts_request(self, request):
         """Return True if the instance is able to process the request.

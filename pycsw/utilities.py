@@ -34,6 +34,12 @@ class ManagedList:
     def __len__(self):  # implementing the sequence protocol
         return len(self._data)
 
+    def __repr__(self):
+        return repr(self._data)
+
+    def __add__(self, other):
+        return self._data + other._data
+
     def append(self, item):
         self._data.append(item)
         setattr(item, self.related_name, self.manager)

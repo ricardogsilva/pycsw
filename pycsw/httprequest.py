@@ -65,6 +65,8 @@ class PycswHttpRequest:
     content_type = "application/xml"
     encoding = "utf-8"
     accept = []
+    _json = None
+    _exml = None
 
     def __init__(self, method, parameters=None, form_data=None, body="",
                  username="", content_type="application/xml",
@@ -77,6 +79,8 @@ class PycswHttpRequest:
         self.content_type = content_type
         self.encoding = encoding
         self.accept = accept or []
+        self._json = None
+        self._exml = None
 
     @property
     def json(self):
@@ -93,7 +97,9 @@ class PycswHttpRequest:
             If the request's body cannot be parsed as JSON
 
         """
-        return json.loads(self.body, encoding=self.encoding)
+        if self._json is None:
+            self._json = json.loads(self.body, encoding=self.encoding)
+        return self._json
 
     @property
     def exml(self):
@@ -110,5 +116,7 @@ class PycswHttpRequest:
             If the request's body cannot be parsed as XML
 
         """
-        parser = get_parser(encoding=self.encoding)
-        return etree.fromstring(self.body, parser=parser)
+        if self._exml is None:
+            parser = get_parser(encoding=self.encoding)
+            self._exml = etree.fromstring(self.body, parser=parser)
+        return self._exml

@@ -1,9 +1,29 @@
 import logging
 
+from lxml import etree
+
 from ... import exceptions
 from .. import servicebase
+from ...httprequest import HttpVerb
 
 logger = logging.getLogger(__name__)
+
+
+class CswDistributedSearch:
+    """Manages distributed search."""
+
+    def __init__(self, enabled=False, remote_catalogues=None, hop_count=1):
+        self.enabled = enabled
+        self.remote_catalogues = remote_catalogues or []
+        self.hop_count = hop_count
+
+    @classmethod
+    def from_config(cls, **config):
+        return cls(
+            enabled=config.get("enabled", False),
+            remote_catalogues=config.get("remote_catalogues"),
+            hop_count=config.get("hop_count", 1),
+        )
 
 
 class CswService(servicebase.Service):
@@ -11,19 +31,14 @@ class CswService(servicebase.Service):
     _name = "CSW"
     distributed_search = CswDistributedSearch()
     operations = []
-    content_types = []
-    kvp_types = []
 
-    def __init__(self, enabled, distributed_search=None, operations=None,
-                 content_types=None, kvp_types=None):
+    def __init__(self, enabled, distributed_search=None, operations=None):
         super().__init__(enabled)
         # load config
         # load eventual plugins
         # lazy load operations
         self.distributed_search = distributed_search or CswDistributedSearch()
         self.operations = operations or []
-        self.content_types = content_types or []
-        self.kvp_types = kvp_types or []
 
     @classmethod
     def from_config(cls, **config):
@@ -39,8 +54,8 @@ class CswService(servicebase.Service):
             content_types=content_types,
         )
 
-    def accepts_request(self, request):
-        """Check whether the input request can be processed by the service.
+    def get_schema_processor(self, request):
+        """Get a suitable schema processor for the request
 
         Parameters
         ----------
@@ -54,35 +69,35 @@ class CswService(servicebase.Service):
 
         """
 
-        schema_processor = False
-        for processor in (p for p in self.kvp_types + self.content_types):
+        result = None
+        for processor in (p for p in self.kvp_processors +
+                self.content_type_processors):
             logger.debug("Evaluating processor: {}...".format(processor))
-            schema_to_use = processor.accepts_request(request)
+            schema_to_use = processor.get_schema_processor(request)
             if schema_to_use is not None:
-                schema_processor = True
                 logger.debug("Processor accepts request")
-                break
+                result = schema_to_use
             else:
                 logger.debug("Processor cannot accept request")
         else:
             logger.debug("Service {0.identifier} does not accept "
                          "the request".format(self))
-        return schema_processor
+        return result
 
 
 class CswKvpProcessor(servicebase.RequestProcessor):
     name = ""
 
-    def __init__(self, name, namespaces=None, schemas=None):
+    def __init__(self, name, namespaces=None):
         self.name = name
-        super().__init__(namespaces=namespaces, schemas=schemas)
+        super().__init__(namespaces=namespaces)
 
     def __str__(self):
         return self.name
 
     @classmethod
     def from_config(cls, **config):
-        schemas = [CswSchemaProcessor.from_config(**schema_config) for
+        schemas = [OgcSchemaProcessor.from_config(**schema_config) for
                    schema_config in config.get("schemas", [])]
         return cls(
             name=config["name"],
@@ -90,14 +105,16 @@ class CswKvpProcessor(servicebase.RequestProcessor):
             schemas=schemas,
         )
 
-    def accepts_request(self, request):
+    def get_schema_processor(self, request):
         schema_to_use = None
         for schema in self.schemas:
             try:
-                requested_service = schema.get_request_service(request)
-                requested_version = schema.get_request_version(request)
-                schema_to_use = schema
-                break
+                requested_info = schema.parse_general_request_info(request)
+                service_ok = requested_info["service"] == self.service.name
+                version_ok = requested_info["version"] == self.service.version
+                if service_ok and version_ok:
+                    schema_to_use = schema
+                    break
             except exceptions.CswError:
                 logger.debug("Schema {0.namespace} cannot accept "
                              "request".format(schema))
@@ -109,16 +126,16 @@ class CswKvpProcessor(servicebase.RequestProcessor):
 class CswContentTypeProcessor(servicebase.RequestProcessor):
     media_type = ""
 
-    def __init__(self, media_type, namespaces=None, schemas=None):
+    def __init__(self, media_type, namespaces=None):
         self.media_type = media_type
-        super().__init__(namespaces=namespaces, schemas=schemas)
+        super().__init__(namespaces=namespaces)
 
     def __str__(self):
         return self.media_type
 
     @classmethod
     def from_config(cls, **config):
-        schemas = [CswSchemaProcessor.from_config(**schema_config) for
+        schemas = [OgcSchemaProcessor.from_config(**schema_config) for
                    schema_config in config.get("schemas", [])]
         return cls(
             media_type=config["media_type"],
@@ -127,7 +144,7 @@ class CswContentTypeProcessor(servicebase.RequestProcessor):
         )
 
 
-class CswSchemaProcessor(servicebase.SchemaProcessor):
+class OgcSchemaProcessor(servicebase.SchemaProcessor):
     type_names = []
     record_mapping = {}
     element_set_names = []
@@ -148,19 +165,19 @@ class CswSchemaProcessor(servicebase.SchemaProcessor):
             element_set_names=config.get("element_set_names"),
         )
 
+    def parse_general_request_info(self, request):
+        if request.method == HttpVerb.GET:
+            request_parameters = {
+                "request": request.parameters.get("request"),
+                "service": request.parameters.get("service"),
+                "version": request.parameters.get("version"),
+            }
+        else:
+            request_parameters = {
+                "request": etree.QName(request.exml).localname,
+                "service": request.exml.get("service"),
+                "version": request.exml.get("version"),
+            }
+        return request_parameters
 
-class CswDistributedSearch:
-    """Manages distributed search."""
 
-    def __init__(self, enabled=False, remote_catalogues=None, hop_count=1):
-        self.enabled = enabled
-        self.remote_catalogues = remote_catalogues or []
-        self.hop_count = hop_count
-
-    @classmethod
-    def from_config(cls, **config):
-        return cls(
-            enabled=config.get("enabled", False),
-            remote_catalogues=config.get("remote_catalogues"),
-            hop_count=config.get("hop_count", 1),
-        )
