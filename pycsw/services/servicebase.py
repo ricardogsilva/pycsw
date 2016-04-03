@@ -141,3 +141,6 @@ class SchemaProcessor:
         """
 
         raise NotImplementedError
+
+    def parse_general_request_info(self, request):
+        raise NotImplementedError

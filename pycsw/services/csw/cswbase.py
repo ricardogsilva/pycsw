@@ -95,16 +95,6 @@ class CswKvpProcessor(servicebase.RequestProcessor):
     def __str__(self):
         return self.name
 
-    @classmethod
-    def from_config(cls, **config):
-        schemas = [OgcSchemaProcessor.from_config(**schema_config) for
-                   schema_config in config.get("schemas", [])]
-        return cls(
-            name=config["name"],
-            namespaces=config.get("namespaces"),
-            schemas=schemas,
-        )
-
     def get_schema_processor(self, request):
         schema_to_use = None
         for schema in self.schemas:
@@ -133,25 +123,15 @@ class CswContentTypeProcessor(servicebase.RequestProcessor):
     def __str__(self):
         return self.media_type
 
-    @classmethod
-    def from_config(cls, **config):
-        schemas = [OgcSchemaProcessor.from_config(**schema_config) for
-                   schema_config in config.get("schemas", [])]
-        return cls(
-            media_type=config["media_type"],
-            namespaces=config.get("namespaces"),
-            schemas=schemas,
-        )
 
-
-class OgcSchemaProcessor(servicebase.SchemaProcessor):
+class CswSchemaProcessor(servicebase.SchemaProcessor):
     type_names = []
     record_mapping = {}
     element_set_names = []
 
     def __init__(self, namespace, type_names=None, record_mapping=None,
                  element_set_names=None):
-        super().__init__(namespace=namespace)
+        super().__init__(namespace)
         self.type_names = type_names or []
         self.record_mapping = record_mapping or {}
         self.element_set_names = element_set_names or []
@@ -165,19 +145,22 @@ class OgcSchemaProcessor(servicebase.SchemaProcessor):
             element_set_names=config.get("element_set_names"),
         )
 
+
+class CswContentTypeSchemaProcessor(CswSchemaProcessor):
+
     def parse_general_request_info(self, request):
-        if request.method == HttpVerb.GET:
-            request_parameters = {
-                "request": request.parameters.get("request"),
-                "service": request.parameters.get("service"),
-                "version": request.parameters.get("version"),
-            }
-        else:
-            request_parameters = {
-                "request": etree.QName(request.exml).localname,
-                "service": request.exml.get("service"),
-                "version": request.exml.get("version"),
-            }
-        return request_parameters
+        return {
+            "request": etree.QName(request.exml).localname,
+            "service": request.exml.get("service"),
+            "version": request.exml.get("version"),
+        }
 
 
+class CswKvpSchemaProcessor(CswSchemaProcessor):
+
+    def parse_general_request_info(self, request):
+        return {
+            "request": request.parameters.get("request"),
+            "service": request.parameters.get("service"),
+            "version": request.parameters.get("version"),
+        }

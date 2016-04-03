@@ -33,7 +33,7 @@ class PycswHttpRequest:
 
     Parameters
     ----------
-    method: str
+    method: HttpVerb
         HTTP method used for making the request.
     parameters: dict, optional
         Query string parameters passed in GET requests.

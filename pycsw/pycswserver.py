@@ -33,6 +33,7 @@ class PycswServer:
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
+        logger.debug("Initializing server...")
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")
         csw202_service = self.setup_csw202_service()
@@ -42,7 +43,8 @@ class PycswServer:
     def services(self):
         return self._services
 
-    def setup_csw202_service(self):
+    @classmethod
+    def setup_csw202_service(cls):
         """Create the CSW version 2.0.2 service."""
         ogc_namespaces = {
             "csw": "http://www.opengis.net/cat/csw/2.0.2",
@@ -56,7 +58,7 @@ class PycswServer:
             namespaces=ogc_namespaces,
         )
         xml_content_type.schemas.append(
-            cswbase.OgcSchemaProcessor(
+            cswbase.CswContentTypeSchemaProcessor(
                 namespace="http://www.opengis.net/cat/csw/2.0.2",
                 type_names=["csw:Record"],
                 record_mapping={
@@ -120,7 +122,7 @@ class PycswServer:
             namespaces=ogc_namespaces,
         )
         ogc_kvp.schemas.append(
-            cswbase.OgcSchemaProcessor(
+            cswbase.CswKvpSchemaProcessor(
                 namespace="http://www.opengis.net/cat/csw/2.0.2",
                 type_names=["csw:Record"],
                 record_mapping={
@@ -191,6 +193,7 @@ class PycswServer:
         )
         csw202_service.content_type_processors.append(xml_content_type)
         csw202_service.kvp_processors.append(ogc_kvp)
+        logger.debug("Initialized csw202 service")
         return csw202_service
 
     def get_schema_processor(self, request):
