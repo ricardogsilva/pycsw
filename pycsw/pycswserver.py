@@ -43,6 +43,25 @@ class PycswServer:
     def services(self):
         return self._services
 
+    @property
+    def default_csw_service(self):
+        """Return the service that responds to CSW requests with no version.
+
+        Since the GetCapabilities request does not mandate the presence of the
+        'version' parameter, there must be a default CSW service. The service
+        that handles CSW with the latest version among the currently enabled
+        services is returned.
+        """
+        latest_csw = None
+        for service in (s for s in self.services if s.enabled):
+            if service.name == "CSW":
+                try:
+                    latest_csw = sorted((service.version, latest_csw),
+                                        reverse=True)[0]
+                except TypeError:  # latest_csw is None
+                    latest_csw = service
+        return latest_csw
+
     @classmethod
     def setup_csw202_service(cls):
         """Create the CSW version 2.0.2 service."""
@@ -197,10 +216,10 @@ class PycswServer:
         return csw202_service
 
     def get_schema_processor(self, request):
-        """Get the appropriate service to process the incoming request.
+        """Get the appropriate schema_processor to process the incoming request.
 
-        This method selects the service that is suitable for processing the
-        request among the list of currently enabled services.
+        This method selects the schema_processor that is suitable for
+        processing the request among the list of currently enabled services.
 
         Parameters
         ----------
@@ -209,16 +228,18 @@ class PycswServer:
 
         Returns
         -------
-        service: pycsw.services.servicebase or None
-            The service object that can process the request.
+        service: pycsw.services.servicebase.SchemaProcessor or None
+            The schema_processor object that can process the request.
 
         Raises
         ------
         pycsw.exceptions.PycswError
-            If none of the enabled services can process the request.
+            If none of the enabled services has a schema_processor that can
+            process the request.
 
         """
         for service in (s for s in self.services if s.enabled):
+            logger.debug("Evaluating service {0.identifier}...".format(service))
             schema_processor = service.get_schema_processor(request)
             if schema_processor is not None:
                 # stop on the first suitable service

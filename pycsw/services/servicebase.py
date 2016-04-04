@@ -1,3 +1,5 @@
+"""Base classes for pycsw services."""
+
 import logging
 
 from .. import utilities

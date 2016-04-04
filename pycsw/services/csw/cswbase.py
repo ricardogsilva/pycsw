@@ -75,8 +75,9 @@ class CswService(servicebase.Service):
             logger.debug("Evaluating processor: {}...".format(processor))
             schema_to_use = processor.get_schema_processor(request)
             if schema_to_use is not None:
-                logger.debug("Processor accepts request")
+                logger.debug("Processor {} accepts request".format(processor))
                 result = schema_to_use
+                break
             else:
                 logger.debug("Processor cannot accept request")
         else:
@@ -85,24 +86,23 @@ class CswService(servicebase.Service):
         return result
 
 
-class CswKvpProcessor(servicebase.RequestProcessor):
-    name = ""
-
-    def __init__(self, name, namespaces=None):
-        self.name = name
-        super().__init__(namespaces=namespaces)
-
-    def __str__(self):
-        return self.name
+class CswProcessor(servicebase.RequestProcessor):
 
     def get_schema_processor(self, request):
         schema_to_use = None
         for schema in self.schemas:
+            logger.debug("Evaluating schema_processor {}...".format(schema))
             try:
-                requested_info = schema.parse_general_request_info(request)
-                service_ok = requested_info["service"] == self.service.name
-                version_ok = requested_info["version"] == self.service.version
+                info = schema.parse_general_request_info(request)
+                logger.debug("requested_info: {}".format(info))
+                service_ok = info["service"] == self.service.name
+                version_ok = info["version"] == self.service.version
+                is_default = (
+                    self.service.server.default_csw_service == self.service)
                 if service_ok and version_ok:
+                    schema_to_use = schema
+                    break
+                elif service_ok and info["version"] is None and is_default:
                     schema_to_use = schema
                     break
             except exceptions.CswError:
@@ -113,7 +113,18 @@ class CswKvpProcessor(servicebase.RequestProcessor):
         return schema_to_use
 
 
-class CswContentTypeProcessor(servicebase.RequestProcessor):
+class CswKvpProcessor(CswProcessor):
+    name = ""
+
+    def __init__(self, name, namespaces=None):
+        self.name = name
+        super().__init__(namespaces=namespaces)
+
+    def __str__(self):
+        return self.name
+
+
+class CswContentTypeProcessor(CswProcessor):
     media_type = ""
 
     def __init__(self, media_type, namespaces=None):
