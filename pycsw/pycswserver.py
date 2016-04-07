@@ -202,16 +202,15 @@ class PycswServer:
         )
         get_capabilities = base.GetCapabilities202Operation(
             enabled=True,
+            allowed_http_verbs=[HttpVerb.GET]
         )
         csw202_service = csw202.Csw202Service(
             enabled=True,
             distributed_search=cswbase.CswDistributedSearch(),
-            operations=[
-                get_capabilities,
-            ],
         )
         csw202_service.content_type_processors.append(xml_content_type)
         csw202_service.kvp_processors.append(ogc_kvp)
+        csw202_service.operations.append(get_capabilities)
         logger.debug("Initialized csw202 service")
         return csw202_service
 

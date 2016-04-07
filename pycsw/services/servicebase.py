@@ -115,6 +115,21 @@ class RequestProcessor:
 
 
 class SchemaProcessor:
+    """Base class for implementing processors for specific schemas.
+
+    This class serves a base for implementing processors for the various
+    schemas that each service might accept. A SchemaProcessor is responsible
+    for:
+
+    * Parsing the incoming PycswHttpRequest object and extract general
+      information from it. This allows the schema processor's parent, which is
+      the generic request_processor, to decide which of its schema processors
+      is able to process an input request
+    * Parsing the incoming request and extract the relevant parameters for
+      the requested operation. This means that each schema_parser must now
+      which operations it is able to parse
+
+    """
     namespace = ""
     _request_processor = None
 
@@ -126,23 +141,14 @@ class SchemaProcessor:
     def request_processor(self):
         return self._request_processor
 
-    def accepts_request(self, request):
-        """Return True if the instance is able to process the request.
+    def parse_general_request_info(self, request):
+        """Extract general request information.
 
-        Reimplement this method in child classes.
+        This method analyses a request and extracts some general information
+        from it.
 
-        Parameters
-        ----------
-        request: pycsw.httprequest.PycswHttpRequest
-            The incoming request object.
-
-        Returns
-        -------
-        bool
-            Whether this schema_processor is able to process the request.
         """
-
         raise NotImplementedError
 
-    def parse_general_request_info(self, request):
+    def process_request(self, request):
         raise NotImplementedError

@@ -4,6 +4,8 @@ from lxml import etree
 
 from ... import exceptions
 from .. import servicebase
+from ... import utilities
+from ... import exceptions
 from ...httprequest import HttpVerb
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,8 @@ class CswDistributedSearch:
 
     def __init__(self, enabled=False, remote_catalogues=None, hop_count=1):
         self.enabled = enabled
-        self.remote_catalogues = remote_catalogues or []
+        self.remote_catalogues = (list(remote_catalogues) if
+                                  remote_catalogues is not None else [])
         self.hop_count = hop_count
 
     @classmethod
@@ -29,16 +32,21 @@ class CswDistributedSearch:
 class CswService(servicebase.Service):
     """Base CSW implementation."""
     _name = "CSW"
+    _operations = None
     distributed_search = CswDistributedSearch()
-    operations = []
 
-    def __init__(self, enabled, distributed_search=None, operations=None):
+    def __init__(self, enabled, distributed_search=None):
         super().__init__(enabled)
         # load config
         # load eventual plugins
         # lazy load operations
         self.distributed_search = distributed_search or CswDistributedSearch()
-        self.operations = operations or []
+        self._operations = utilities.ManagedList(manager=self,
+                                                 related_name="_service")
+
+    @property
+    def operations(self):
+        return self._operations
 
     @classmethod
     def from_config(cls, **config):
@@ -53,6 +61,15 @@ class CswService(servicebase.Service):
             distributed_search=distributed_search,
             content_types=content_types,
         )
+
+    def get_enabled_operation(self, name):
+        for operation in (op for op in self.operations if op.enabled):
+            if operation.name == name:
+                result = operation
+                break
+        else:
+            result = None
+        return result
 
     def get_schema_processor(self, request):
         """Get a suitable schema processor for the request
@@ -165,6 +182,40 @@ class CswContentTypeSchemaProcessor(CswSchemaProcessor):
             "service": request.exml.get("service"),
             "version": request.exml.get("version"),
         }
+
+    def process_request(self, request):
+        """Process an incoming request with the input operation."""
+        try:
+            request_info = self.parse_general_request_info(request)
+            result = {
+                "getCapabilities": self.process_get_capabilities,
+            }.get(request_info["request"])(request)
+        # TODO: catch a possible exception thrown by etree
+        except KeyError:  # this schema processor does not parse the operation
+            raise exceptions.CswError()
+        else:
+            return result
+
+    def process_get_capabilities(self, request):
+        """Process CSW GetCapabilities operation."""
+        try:
+            operation = self.request_processor.service.get_enabled_operation(
+                "GetCapabilities")
+        except TypeError:  # the operation doesn't exist or isn't enabled
+            raise exceptions.CswError()
+        else:
+            if HttpVerb.GET in operation.allowed_http_verbs:
+                sections = request.parameters.get("sections")
+                accept_versions = request.parameters.get("acceptVersions")
+                accept_formats = request.parameters.get("acceptFormats")
+                update_sequence = request.parameters.get("updateSequence")
+                result = operation(sections=sections,
+                                   accept_versions=accept_versions,
+                                   accept_formats=accept_formats,
+                                   update_sequence=update_sequence)
+            else:  # the operation does not respond to the input HTTP method
+                raise exceptions.CswError()
+            return result
 
 
 class CswKvpSchemaProcessor(CswSchemaProcessor):

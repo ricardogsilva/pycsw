@@ -72,13 +72,13 @@ class PycswHttpRequest:
                  username="", content_type="application/xml",
                  encoding="utf-8", accept=None):
         self.method = method
-        self.parameters = parameters or {}
-        self.form_data = form_data or {}
+        self.parameters = dict(parameters) or {}
+        self.form_data = dict(form_data) or {}
         self.body = body
         self.username = username
         self.content_type = content_type
         self.encoding = encoding
-        self.accept = accept or []
+        self.accept = list(accept) or []
         self._json = None
         self._exml = None
 
