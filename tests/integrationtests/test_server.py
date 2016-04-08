@@ -30,7 +30,7 @@ class TestPycswServer:
                                                parameters=params,
                                                content_type="")
         schema_processor = server.get_schema_processor(request)
-        assert isinstance(schema_processor, cswbase.CswKvpSchemaProcessor)
+        assert isinstance(schema_processor, cswbase.CswOgcSchemaProcessor)
 
     def test_get_schema_processor_csw_post_get_capabilities(self):
         body = """
@@ -46,7 +46,7 @@ class TestPycswServer:
         server = pycswserver.PycswServer()
         schema_processor = server.get_schema_processor(request)
         assert isinstance(schema_processor,
-                          cswbase.CswContentTypeSchemaProcessor)
+                          cswbase.CswOgcPostProcessor)
 
     def test_process_request_csw_kvp_get_capabilities_request(self):
         server = pycswserver.PycswServer()

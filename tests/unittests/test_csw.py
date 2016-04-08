@@ -1,16 +1,13 @@
 import pytest
 
-from pycsw.services import csw
+from pycsw.services.csw import cswbase
+from pycsw.services.csw import csw202
 
 @pytest.mark.unit
 class TestCswService:
 
     def test_identifier(self):
-        service = csw.CswService()
-        assert service.identifier == "CSW_v"
-
-    def test_creation_from_config(self):
-        service = csw.CswService.from_config()
+        service = cswbase.CswService()
         assert service.identifier == "CSW_v"
 
 
@@ -18,9 +15,5 @@ class TestCswService:
 class TestCsw202Service:
 
     def test_identifier(self):
-        service = csw.Csw202Service()
-        assert service.identifier == "CSW_v2.0.2"
-
-    def test_creation_from_config(self):
-        service = csw.Csw202Service.from_config()
+        service = csw202.Csw202Service()
         assert service.identifier == "CSW_v2.0.2"

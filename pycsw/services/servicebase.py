@@ -13,17 +13,25 @@ class Service:
     _name = ""
     _version = ""
     _server = None
+    _operations = None
 
-    _content_type_processors = None
-    _kvp_processors = None
+    _schema_processors = None
 
-    def __init__(self, enabled):
-        self.enabled = enabled
+    def __init__(self):
         self._server = None
-        self._content_type_processors = utilities.ManagedList(
+        self._schema_processors = utilities.ManagedList(
             manager=self, related_name="_service")
-        self._kvp_processors = utilities.ManagedList(
-            manager=self, related_name="_service")
+        self._operations = utilities.ManagedList(manager=self,
+                                                 related_name="_service")
+
+    def __repr__(self):
+        return ("{0.__class__.__name__}(name={0.name!r}, "
+                "version={0.version!r}, "
+                "operations={0.operations!r}, "
+                "schema_processors={0.schema_processors!r})".format(self))
+
+    def __str__(self):
+        return "{0.__class__.__name__}({0.identifier})".format(self)
 
     @property
     def name(self):
@@ -43,56 +51,34 @@ class Service:
         return self._server
 
     @property
-    def content_type_processors(self):
-        return self._content_type_processors
+    def schema_processors(self):
+        """Return the available SchemaProcessor objects.
+
+        SchemaProcessors are used to process requests.
+
+        """
+        return self._schema_processors
 
     @property
-    def kvp_processors(self):
-        return self._kvp_processors
+    def operations(self):
+        """Return the available operations."""
+        return self._operations
 
-    @classmethod
-    def from_config(cls, **config_keys):
-        instance = cls()
-        return instance
+    def get_enabled_operation(self, name):
+        """Return the operation that matches the input name.
 
-    def get_schema_processor(self, request):
-        """Get a suitable schema processor for the request
-
-        Reimplement this method in child classes.
-
-        Parameters
-        ----------
-        request: pycsw.httprequest.PycswHttpRequest
-            The incoming request object.
-
-        Returns
-        -------
-        pycsw.services.csw.cswbase.OgcSchemaProcessor
-            The schema processor object that can process the request.
+        If an operation with a name that is euqla to the input name exists
+        and is enabled it is returned.
 
         """
 
-        raise NotImplementedError
-
-
-class RequestProcessor:
-    namespaces = {}
-    _schemas = None
-    _service = None
-
-    def __init__(self, namespaces=None):
-        self.namespaces = namespaces.copy() or {}
-        self._schemas = utilities.ManagedList(
-            manager=self, related_name="_request_processor")
-        self._service = None
-
-    @property
-    def service(self):
-        return self._service
-
-    @property
-    def schemas(self):
-        return self._schemas
+        for operation in (op for op in self.operations if op.enabled):
+            if operation.name == name:
+                result = operation
+                break
+        else:
+            result = None
+        return result
 
     def get_schema_processor(self, request):
         """Get a suitable schema processor for the request
@@ -130,16 +116,17 @@ class SchemaProcessor:
       which operations it is able to parse
 
     """
-    namespace = ""
-    _request_processor = None
+    _service = None
+    namespaces = {}
+    media_type = ""
 
-    def __init__(self, namespace):
-        self.namespace = namespace
-        self._request_processor = None
+    def __init__(self, namespaces=None, media_type=""):
+        self.namespaces = namespaces.copy() if namespaces is not None else {}
+        self._service = None
 
     @property
-    def request_processor(self):
-        return self._request_processor
+    def service(self):
+        return self._service
 
     def parse_general_request_info(self, request):
         """Extract general request information.

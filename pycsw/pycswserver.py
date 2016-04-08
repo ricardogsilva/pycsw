@@ -39,6 +39,10 @@ class PycswServer:
         csw202_service = self.setup_csw202_service()
         self.services.append(csw202_service)
 
+    def __repr__(self):
+        return ("{0.__class__.__name__}(services={0.services!r}, "
+                "default_csw_service={0.default_csw_service!r})".format(self))
+
     @property
     def services(self):
         return self._services
@@ -53,13 +57,12 @@ class PycswServer:
         services is returned.
         """
         latest_csw = None
-        for service in (s for s in self.services if s.enabled):
-            if service.name == "CSW":
-                try:
-                    latest_csw = sorted((service.version, latest_csw),
-                                        reverse=True)[0]
-                except TypeError:  # latest_csw is None
-                    latest_csw = service
+        for service in (s for s in self.services if s.name == "CSW"):
+            try:
+                 latest_csw = sorted((service.version, latest_csw),
+                                     reverse=True)[0]
+            except TypeError:  # latest_csw is None
+                latest_csw = service
         return latest_csw
 
     @classmethod
@@ -72,144 +75,83 @@ class PycswServer:
             "ows": "http://www.opengis.net/ows",
 
         }
-        xml_content_type = cswbase.CswContentTypeProcessor(
+        ogc_record_mapping = {
+            "title": "dc:title",
+            "creator": "dc:creator",
+            "subject": "dc:subject",
+            "abstract": "dct:abstract",
+            "publisher": "dc:publisher",
+            "contributor": "dc:contributor",
+            "modified": "dct:modified",
+            "type_": "dc:type",
+            "format_": "dc:format",
+            "identifier": "dc:identifier",
+            "source": "dc:source",
+            "language": "dc:language",
+            "association": "dc:relation",
+            "bounding_box": "ows:BoundingBox",
+            "rights": "dc:rights",
+        }
+        ogc_element_set_names = {
+            "full": [
+                "dc:identifier",
+                "dc:title",
+                "dc:creator",
+                "dc:subject",
+                "dct:abstract",
+                "dc:publisher",
+                "dc:contributor",
+                "dct:modified",
+                "dc:type",
+                "dc:format",
+                "dc:source",
+                "dc:language",
+                "dc:relation",
+                "ows:BoundingBox",
+                "dc:rights",
+            ],
+            "summary": [
+                "dc:identifier",
+                "dc:title",
+                "dc:type",
+                "dc:subject",
+                "dc:format",
+                "dc:relation",
+                "dct:modified",
+                "dct:abstract",
+                "dct:spatial",  # ?
+                "ows:BoundingBox",
+            ],
+            "brief": [
+                "dc:identifier",
+                "dc:title",
+                "dc:type",
+                "ows:BoundingBox",
+            ],
+        }
+        post_processor = cswbase.CswOgcPostProcessor(
             media_type="application/xml",
             namespaces=ogc_namespaces,
+            type_names=["csw:Record"],
+            record_mapping=ogc_record_mapping,
+            element_set_names=ogc_element_set_names,
         )
-        xml_content_type.schemas.append(
-            cswbase.CswContentTypeSchemaProcessor(
-                namespace="http://www.opengis.net/cat/csw/2.0.2",
-                type_names=["csw:Record"],
-                record_mapping={
-                    "title": "dc:title",
-                    "creator": "dc:creator",
-                    "subject": "dc:subject",
-                    "abstract": "dct:abstract",
-                    "publisher": "dc:publisher",
-                    "contributor": "dc:contributor",
-                    "modified": "dct:modified",
-                    "type_": "dc:type",
-                    "format_": "dc:format",
-                    "identifier": "dc:identifier",
-                    "source": "dc:source",
-                    "language": "dc:language",
-                    "association": "dc:relation",
-                    "bounding_box": "ows:BoundingBox",
-                    "rights": "dc:rights",
-                },
-                element_set_names={
-                    "full": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:creator",
-                        "dc:subject",
-                        "dct:abstract",
-                        "dc:publisher",
-                        "dc:contributor",
-                        "dct:modified",
-                        "dc:type",
-                        "dc:format",
-                        "dc:source",
-                        "dc:language",
-                        "dc:relation",
-                        "ows:BoundingBox",
-                        "dc:rights",
-                    ],
-                    "summary": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:type",
-                        "dc:subject",
-                        "dc:format",
-                        "dc:relation",
-                        "dct:modified",
-                        "dct:abstract",
-                        "dct:spatial",  # ?
-                        "ows:BoundingBox",
-                    ],
-                    "brief": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:type",
-                        "ows:BoundingBox",
-                    ],
-                }
-            )
-        )
-        ogc_kvp = cswbase.CswKvpProcessor(
-            name="OGC KVP",
+
+        kvp_processor = cswbase.CswOgcKvpProcessor(
             namespaces=ogc_namespaces,
-        )
-        ogc_kvp.schemas.append(
-            cswbase.CswKvpSchemaProcessor(
-                namespace="http://www.opengis.net/cat/csw/2.0.2",
-                type_names=["csw:Record"],
-                record_mapping={
-                    "title": "dc:title",
-                    "creator": "dc:creator",
-                    "subject": "dc:subject",
-                    "abstract": "dct:abstract",
-                    "publisher": "dc:publisher",
-                    "contributor": "dc:contributor",
-                    "modified": "dct:modified",
-                    "type_": "dc:type",
-                    "format_": "dc:format",
-                    "identifier": "dc:identifier",
-                    "source": "dc:source",
-                    "language": "dc:language",
-                    "association": "dc:relation",
-                    "bounding_box": "ows:BoundingBox",
-                    "rights": "dc:rights",
-                },
-                element_set_names={
-                    "full": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:creator",
-                        "dc:subject",
-                        "dct:abstract",
-                        "dc:publisher",
-                        "dc:contributor",
-                        "dct:modified",
-                        "dc:type",
-                        "dc:format",
-                        "dc:source",
-                        "dc:language",
-                        "dc:relation",
-                        "ows:BoundingBox",
-                        "dc:rights",
-                    ],
-                    "summary": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:type",
-                        "dc:subject",
-                        "dc:format",
-                        "dc:relation",
-                        "dct:modified",
-                        "dct:abstract",
-                        "dct:spatial",  # ?
-                        "ows:BoundingBox",
-                    ],
-                    "brief": [
-                        "dc:identifier",
-                        "dc:title",
-                        "dc:type",
-                        "ows:BoundingBox",
-                    ],
-                }
-            )
+            type_names=["csw:Record"],
+            record_mapping=ogc_record_mapping,
+            element_set_names=ogc_element_set_names,
         )
         get_capabilities = base.GetCapabilities202Operation(
             enabled=True,
             allowed_http_verbs=[HttpVerb.GET]
         )
         csw202_service = csw202.Csw202Service(
-            enabled=True,
             distributed_search=cswbase.CswDistributedSearch(),
         )
-        csw202_service.content_type_processors.append(xml_content_type)
-        csw202_service.kvp_processors.append(ogc_kvp)
+        csw202_service.schema_processors.append(post_processor)
+        csw202_service.schema_processors.append(kvp_processor)
         csw202_service.operations.append(get_capabilities)
         logger.debug("Initialized csw202 service")
         return csw202_service
@@ -237,13 +179,13 @@ class PycswServer:
             process the request.
 
         """
-        for service in (s for s in self.services if s.enabled):
-            logger.debug("Evaluating service {0.identifier}...".format(service))
+        for service in self.services:
+            logger.debug("Evaluating {0.identifier}...".format(service))
             schema_processor = service.get_schema_processor(request)
             if schema_processor is not None:
                 # stop on the first suitable service
                 return schema_processor
         else:
             raise exceptions.PycswError("Could not find a suitable schema "
-                                        "processor in any of the enabled "
+                                        "processor in any of the available "
                                         "services.")
