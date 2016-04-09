@@ -10,6 +10,12 @@ logger = logging.getLogger(__name__)
 class Service:
     """Base class for all pycsw services."""
 
+    title = ""
+    abstract = ""
+    keywords = None
+    fees = ""
+    access_constraints = ""
+
     _name = ""
     _version = ""
     _server = None
@@ -17,7 +23,14 @@ class Service:
 
     _schema_processors = None
 
-    def __init__(self):
+
+    def __init__(self, title="", abstract="", keywords=None, fees="",
+                 access_constraints=""):
+        self.title = title
+        self.abstract = abstract
+        self.keywords = list(keywords) if keywords is not None else []
+        self.fees = fees
+        self.access_constraints = access_constraints
         self._server = None
         self._schema_processors = utilities.ManagedList(
             manager=self, related_name="_service")

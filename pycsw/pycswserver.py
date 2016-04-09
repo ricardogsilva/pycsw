@@ -26,13 +26,30 @@ from . import utilities
 logger = logging.getLogger(__name__)
 
 
+class IsoOnlineResource:
+    pass
+
+
+class IsoServiceContact:
+    pass
+
+
 class PycswServer:
     """Processes incoming HTTTP requests."""
+
+    provider_name = ""
+    provider_site = None
+    provider_contact = None
 
     _services = None
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
+        config = {}
+        self.provider_name = config.get("name", config_args.get("name", ""))
+        # todo: add site and contact details
+        self.provider_site = IsoOnlineResource()
+        self.provider_contact = IsoServiceContact()
         logger.debug("Initializing server...")
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")
@@ -145,7 +162,7 @@ class PycswServer:
         )
         get_capabilities = base.GetCapabilities202Operation(
             enabled=True,
-            allowed_http_verbs=[HttpVerb.GET]
+            allowed_http_verbs={HttpVerb.GET}
         )
         csw202_service = csw202.Csw202Service(
             distributed_search=cswbase.CswDistributedSearch(),
@@ -155,6 +172,15 @@ class PycswServer:
         csw202_service.operations.append(get_capabilities)
         logger.debug("Initialized csw202 service")
         return csw202_service
+
+    def get_service(self, name, version):
+        """Return the service with the specified name and version."""
+        for s in self.services:
+            if s.name == name and s.version == version:
+                return s
+        else:
+            logger.debug("Server does not feature "
+                         "service {}v{}".format(name, version))
 
     def get_schema_processor(self, request):
         """Get the appropriate schema_processor to process the incoming request.
