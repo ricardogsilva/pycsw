@@ -22,16 +22,9 @@ from .services.csw import csw202
 from .services.csw.operations import base
 from .httprequest import HttpVerb
 from . import utilities
+from . import contacts
 
 logger = logging.getLogger(__name__)
-
-
-class IsoOnlineResource:
-    pass
-
-
-class IsoServiceContact:
-    pass
 
 
 class PycswServer:
@@ -48,8 +41,8 @@ class PycswServer:
         config = {}
         self.provider_name = config.get("name", config_args.get("name", ""))
         # todo: add site and contact details
-        self.provider_site = IsoOnlineResource()
-        self.provider_contact = IsoServiceContact()
+        self.provider_site = contacts.IsoOnlineResource(linkage="")
+        self.provider_contact = contacts.IsoResponsibleParty()
         logger.debug("Initializing server...")
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")

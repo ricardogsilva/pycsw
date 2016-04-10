@@ -1,4 +1,5 @@
 import logging
+import inspect
 
 from ....httprequest import HttpVerb
 from ....exceptions import CswError
@@ -20,6 +21,8 @@ class CswOperation:
 
     _name = ""
     _service = None
+    parameters = None
+    constraints = None
     enabled = False
     allowed_http_verbs = None
 
@@ -43,8 +46,37 @@ class CswOperation:
         return self._service
 
 
+class OperationParameter:
+
+    name = ""
+    allowed_values = ""
+    metadata = None
+
+    def __init__(self, name, allowed_values=None, metadata=None):
+        self.name = name
+        self.allowed_values = (list(allowed_values) if
+                               allowed_values is not None else allowed_values)
+        self.metadata = metadata
+
+    def __str__(self):
+        return "{0.__class__.__name__}(name={0.name})".format(self)
+
+    def __repr__(self):
+        return ("{0.__class__.__name__}(name={0.name!r}, "
+                "allowed_values={0.allowed_values!r}, "
+                "metadata={0.metadata!r})".format(self))
+
+
 class GetCapabilities202Operation(CswOperation):
     _name = "GetCapabilities"
+
+    parameters = [
+        OperationParameter(name="AcceptVersions"),
+        OperationParameter(name="Sections"),
+        OperationParameter(name="AcceptFormats"),
+        OperationParameter(name="updateSequence"),
+    ]
+    constraints = []
 
     def __init__(self, enabled=True, allowed_http_verbs=None):
         super().__init__(enabled=enabled,
@@ -111,20 +143,37 @@ class GetCapabilities202Operation(CswOperation):
         }
 
     def get_service_provider(self):
+        provider_contact = self.service.server.provider_contact
+        provider_site = self.service.server.provider_site
         return {
             "ProviderName": self.service.server.provider_name,
-            "ProviderSite": {},  # todo: extract this from server.provider_site
-            "ServiceContact": {},  # todo: extract this from server.service_contact
+            "ProviderSite": {
+                "linkage": provider_site.linkage,
+                "name": provider_site.name,
+                "protocol": provider_site.protocol,
+                "description": provider_site.description,
+            },
+            "ServiceContact": {
+                "organisationName": provider_contact.organisation_name,
+            }
         }
 
     def get_operations_metadata(self):
-        pass
+        ops = []
+        for operation in self.service.operations:
+            if operation.enabled:
+                op_data = {
+                    "name": operation.name,
+                    "distributed_computing_platform": None,
+                    "parameters": operation.parameters,
+                    "constraints": operation.constraints,
+                    "metadatas": [],
+                }
+                ops.append(op_data)
+        return ops
 
     def get_filter_capabilities(self):
         pass
 
     def get_contents(self):
         pass
-
-
-
