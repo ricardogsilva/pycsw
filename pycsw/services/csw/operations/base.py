@@ -5,6 +5,7 @@ from ....httprequest import HttpVerb
 from ....exceptions import CswError
 from ....exceptions import VERSION_NEGOTIATION_FAILED
 from ....exceptions import INVALID_PARAMETER_VALUE
+from ....exceptions import INVALID_UPDATE_SEQUENCE
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +71,6 @@ class OperationParameter:
 class GetCapabilities202Operation(CswOperation):
     _name = "GetCapabilities"
 
-    parameters = [
-        OperationParameter(name="AcceptVersions"),
-        OperationParameter(name="Sections"),
-        OperationParameter(name="AcceptFormats"),
-        OperationParameter(name="updateSequence"),
-    ]
-    constraints = []
 
     def __init__(self, enabled=True, allowed_http_verbs=None):
         super().__init__(enabled=enabled,
@@ -84,19 +78,63 @@ class GetCapabilities202Operation(CswOperation):
         # OGC CSWv2.0.2 mandates that GetCapabilities
         # must accept GET requests
         self.allowed_http_verbs.add(HttpVerb.GET)
+        self.parameters = [
+            OperationParameter(name="AcceptVersions"),
+            OperationParameter(name="Sections",
+                               allowed_values=self._sections_map.keys()),
+            OperationParameter(name="AcceptFormats"),
+            OperationParameter(name="updateSequence", allowed_values=[1]),
+        ]
+        self.constraints = []
 
     def __call__(self, accept_versions=None, sections=None,
                  update_sequence=None, accept_formats=None):
         logger.debug("{0.__class__.__name__} called".format(self))
         service_to_use = self.get_service_to_use(accept_versions or [])
         if service_to_use is self.service:
-            sections_info = self.get_sections(sections)
+            up_sequence = self.get_parameter(
+                "updateSequence").allowed_values[0]
+            result = {
+                "version": self.service.version,
+                "updateSequence": up_sequence,
+            }
+            if update_sequence is None or update_sequence < up_sequence:
+                # return full capabilities
+                sections_info = self.get_sections(sections)
+                result.update(sections_info)
+            elif update_sequence == up_sequence:
+                pass  # result is complete, no need to add anything else
+            else:
+                raise CswError(code=INVALID_UPDATE_SEQUENCE)
         elif service_to_use is not None:
             # check if the GetCapabilities operation of the service_to_use
             # is enabled if so, process it and return the result
-            pass
+            other_get_capabilities = service_to_use.get_enabled_operation(
+                "GetCapabilities")
+            if other_get_capabilities is not None:
+                logger.debug("Transferring operation {0.name} to "
+                             "service {1}...".format(self, service_to_use))
+                result = other_get_capabilities(
+                    accept_versions=accept_versions,
+                    sections=sections,
+                    update_sequence=update_sequence,
+                    accept_formats=accept_formats
+                )
+            else:
+                raise CswError(code=VERSION_NEGOTIATION_FAILED)
         else:
             raise CswError(code=VERSION_NEGOTIATION_FAILED)
+        return result
+
+    @property
+    def _sections_map(self):
+        return {
+            "ServiceIdentification": self.get_service_identification,
+            "ServiceProvider": self.get_service_provider,
+            "OperationsMetadata": self.get_operations_metadata,
+            "Contents": self.get_contents,
+            "FilterCapabilities": self.get_filter_capabilities,
+        }
 
     def get_service_to_use(self, accept_versions):
         service = None
@@ -110,26 +148,27 @@ class GetCapabilities202Operation(CswOperation):
             service = self.service.server.default_csw_service
         return service
 
+    def get_parameter(self, name):
+        for parameter in self.parameters:
+            if parameter.name == name:
+                result = parameter
+                break
+        else:
+            result = None
+        return result
+
     def get_sections(self, sections=None):
         sections = list(sections) if sections is not None else []
         result = {}
-        section_map = {
-            "ServiceIdentification": self.get_service_identification,
-            "ServiceProvider": self.get_service_provider,
-            "OperationsMetadata": self.get_service_provider,
-            "Contents": self.get_contents,
-            "FilterCapabilities": self.get_filter_capabilities,
-        }
         for name in (s for s in sections):
-            if name not in section_map.keys() and name != "All":
+            if name not in self._sections_map.keys() and name != "All":
                 raise CswError(code=INVALID_PARAMETER_VALUE,
                                 locator="Sections")
         else:
-            for name, func in section_map.items():
+            for name, func in self._sections_map.items():
                 if name in sections or not any(sections):
                     result[name] = func()
         return result
-
 
     def get_service_identification(self):
         return {

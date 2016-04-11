@@ -48,6 +48,7 @@ class PycswServer:
                                                related_name="_server")
         csw202_service = self.setup_csw202_service()
         self.services.append(csw202_service)
+        self.finish_loading_csw_services()
 
     def __repr__(self):
         return ("{0.__class__.__name__}(services={0.services!r}, "
@@ -208,3 +209,30 @@ class PycswServer:
             raise exceptions.PycswError("Could not find a suitable schema "
                                         "processor in any of the available "
                                         "services.")
+
+    def finish_loading_csw_services(self):
+        """Update metadata on CSW services after the have been loaded.
+
+        This method is specially relevant for the GetCapabilities operations
+        defined in each available CSW service. Since GetCapabilities accepts
+        the `AcceptVersions` parameter, it becomes necessary to let each
+        GetCapabilities operation instance know about the various CSW services
+        that are available on the server.
+
+        """
+        csw_versions = [s.version for s in self.services if s.name == "CSW"]
+
+        for csw_service in (s for s in self.services if s.name == "CSW"):
+            get_capabilities = csw_service.get_enabled_operation(
+                "GetCapabilities")
+            if get_capabilities is not None:
+                accept_versions = get_capabilities.get_parameter(
+                    "AcceptVersions")
+                accept_versions.allowed_values = csw_versions
+                accept_formats = get_capabilities.get_parameter(
+                    "AcceptFormats")
+                accept_formats.allowed_values = [
+                    p.media_type for p in csw_service.schema_processors if
+                    p.media_type
+                ]
+
