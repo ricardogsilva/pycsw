@@ -27,6 +27,7 @@ setup(
     install_requires=[
         "lxml==3.5.0",
         "werkzeug==0.11.5",
+        "sqlalchemy",
     ],
     packages=find_packages(),
     entry_points={

@@ -82,7 +82,8 @@ class IsoResponsibleParty:
         self.individual_name = individual_name
         self.organisation_name = organisation_name
         self.position_name = position_name
-        self.contact_info = contact_info
+        self.contact_info = (contact_info if contact_info is None
+                             else IsoContact())
 
 
 class IsoTelephone:
