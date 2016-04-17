@@ -32,12 +32,14 @@ class CswService(servicebase.Service):
 
     _name = "CSW"
     distributed_search = None
+    repository = None
 
-    def __init__(self, distributed_search=None):
+    def __init__(self, repository=None, distributed_search=None):
         super().__init__()
         self.distributed_search = (distributed_search if
                                    distributed_search is not None
                                    else CswDistributedSearch())
+        self.repository = repository
 
     def get_schema_processor(self, request):
         """Get a suitable schema processor for the request

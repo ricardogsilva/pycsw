@@ -3,6 +3,132 @@ from uuid import uuid1
 
 from .fields import TextField
 from .fields import DateTimeField
+from .fields import CswTypenamePropertyText
+from .fields import CswTypenamePropertyDatetime
+
+ows_namespace = "http://www.opengis.net/ows"
+csw202_namespace = "http://www.opengis.net/cat/csw/2.0.2"
+dc11_namespace = "http://purl.org/dc/elements/1.1/"
+dc_terms_namespace = "http://purl.org/dc/terms"
+
+
+# TODO: there should be a descriptor attribute with the name of each property
+# in the typename. There can be a different name for the queryable and another
+# for the returnable.
+class CswTypename:
+    subject = CswTypenamePropertyText(
+        public_name="subject", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="The topic of the content of the resource."
+    )
+    title = CswTypenamePropertyText(
+        public_name="title", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="A name given to the resource.",
+    )
+    abstract = CswTypenamePropertyText(
+        public_name="abstract", namespace=dc_terms_namespace,
+        queryable=True, returnable=True,
+        description="A summary of the content of the resource."
+    )
+    any_text = CswTypenamePropertyText(
+        public_name="AnyText", namespace=csw202_namespace,
+        queryable=True, returnable=False,
+        description="A target for full-text search of character data types "
+                    "in a catalogue."
+    )
+    format_ = CswTypenamePropertyText(
+        public_name="format", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="The physical or digital manifestation of the resource."
+    )
+    identifier = CswTypenamePropertyText(
+        public_name="identifier", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="A unique reference to the record within the catalogue."
+    )
+    modified = CswTypenamePropertyDatetime(
+        public_name="date", namespace=dc_terms_namespace,
+        queryable=True, returnable=True,
+        description="Date on which the record was created or updated within "
+                    "the catalogue. Unlike the CSW 2.0.2 standard, we are "
+                    "using a DateTime type."
+    )
+    type_ = CswTypenamePropertyText(
+        public_name="type", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="The nature or genre of the content of the resource. "
+                    "Type can include general categories, genres or "
+                    "aggregation levels of content."
+    )
+    bounding_box = CswTypenamePropertyText(
+        public_name="coverage", namespace=dc11_namespace,
+        queryable=True, returnable=True,
+        description="A bounding box for identifying a geographic area of "
+                    "interest."
+    )
+    crs = CswTypenamePropertyText(
+        public_name="CRS", namespace=csw202_namespace,
+        queryable=True, returnable=False,
+        description="Geographic Coordinate Reference System (Authority and "
+                    "ID) for the BoundingBox."
+    )
+    association = CswTypenamePropertyText(
+        public_name="relation", namespace=csw202_namespace,
+        queryable=True, returnable=True,
+        description="Complete statement of a one-to-one relationship. The "
+                    "name of the relationship that exists between the "
+                    "resource described by this record and a related "
+                    "resource."
+    )
+    creator = CswTypenamePropertyText(
+        public_name="creator", namespace=dc11_namespace,
+        queryable=False, returnable=True,
+        description="An entity primarily responsible for making the content "
+                    "of the resource."
+    )
+    publisher = CswTypenamePropertyText(
+        public_name="publisher", namespace=dc11_namespace,
+        queryable=False, returnable=True,
+        description="An entity responsible for making the resource available."
+    )
+    contributor = CswTypenamePropertyText(
+        public_name="contributor", namespace=dc11_namespace,
+        queryable=False, returnable=True,
+        description="An entity responsible for making contributions to the "
+                    "content of the resource."
+    )
+    language = CswTypenamePropertyText(
+        public_name="language", namespace=dc11_namespace,
+        queryable=False, returnable=True,
+        description="A language of the intellectual content of the "
+                    "catalogue record."
+    )
+    rights = CswTypenamePropertyText(
+        public_name="rights", namespace=dc11_namespace,
+        queryable=False, returnable=True,
+        description="Information about rights held in and over the resource."
+    )
+
+    def __init__(self, subject="", title="", abstract="", format_="",
+                 identifier=None, type_="", bounding_box=None,
+                 crs="epsg:4326", association=None, creator="", publisher="",
+                 contributor="", language="", rights=""):
+        self.subject = subject
+        self.title = title
+        self.abstract = abstract
+        self.format_ = format_
+        self.identifier = identifier or str(uuid1())
+        self.modified = dt.datetime.utcnow()
+        self.type_ = type_
+        self.bounding_box = bounding_box
+        self.crs = crs
+        self.association = association
+        self.creator = creator
+        self.publisher = publisher
+        self.contributor = contributor
+        self.language = language
+        self.rights = rights
 
 
 class CswBoundingBox202:

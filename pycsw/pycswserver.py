@@ -3,12 +3,10 @@
 >>> server = PycswServer(config)
 >>> # request is a PycswHttpRequest that was created from the werkzeug request
 >>> try:
->>>     service = server.select_service(request)
->>>     operation = service.select_operation(request)
->>>     result = operation.process_request(request)  # ?
->>>     response = service.prepare_response(result)  # ?
->>> except PycswError:
->>>     response = server.generate_error_response()
+>>>     processor = server.get_schema_processor(request)
+>>>     response = processor.process_request(request)
+>>> except PycswError as err:
+>>>     response = server.generate_error_response(err)
 >>> finally:  # wrap our response as a werkzeug response
 >>>     return response
 
@@ -21,6 +19,7 @@ from .services.csw import cswbase
 from .services.csw import csw202
 from .services.csw.operations import base
 from .httprequest import HttpVerb
+from .repositories.sla.repository import CswSlaRepository
 from . import utilities
 from . import contacts
 
@@ -46,7 +45,9 @@ class PycswServer:
         logger.debug("Initializing server...")
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")
-        csw202_service = self.setup_csw202_service()
+        csw202_repository = self.setup_csw202_repository()
+        csw202_service = self.setup_csw202_service(
+            repository=csw202_repository)
         self.services.append(csw202_service)
         self.finish_loading_csw_services()
 
@@ -77,7 +78,7 @@ class PycswServer:
         return latest_csw
 
     @classmethod
-    def setup_csw202_service(cls):
+    def setup_csw202_service(cls, repository=None):
         """Create the CSW version 2.0.2 service."""
         ogc_namespaces = {
             "csw": "http://www.opengis.net/cat/csw/2.0.2",
@@ -160,12 +161,22 @@ class PycswServer:
         )
         csw202_service = csw202.Csw202Service(
             distributed_search=cswbase.CswDistributedSearch(),
+            repository=repository,
         )
         csw202_service.schema_processors.append(post_processor)
         csw202_service.schema_processors.append(kvp_processor)
         csw202_service.operations.append(get_capabilities)
         logger.debug("Initialized csw202 service")
         return csw202_service
+
+    def setup_csw202_repository(self, engine_url=None, echo=False,
+                                query_translator_modules=None):
+        repository = CswSlaRepository(
+            engine_url=engine_url,
+            echo=echo,
+            query_translator_modules=query_translator_modules
+        )
+        return repository
 
     def get_service(self, name, version):
         """Return the service with the specified name and version."""

@@ -22,13 +22,19 @@ a future API:
 >>> sla_repo.session.add(record3)
 >>> sla_repo.session.commit()
 
+The CSW repository is associated with the CSW service (not the server).
+
 """
 
 
 import logging
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from ... import exceptions
 from ..repositorybase import CswRepository
+from . import querytranslators  # loads default query translators
 from .models import Base
 from .models import Record
 
@@ -43,10 +49,14 @@ class CswSlaRepository(CswRepository):
     engine = None
     session = None
 
-    def __init__(self, engine, session):
-        super().__init__()
-        self.engine = engine
-        self.session = session
+    def __init__(self, engine_url=None, echo=False,
+                 query_translator_modules=None):
+        super().__init__(
+            extra_query_translator_modules=query_translator_modules)
+        engine_url = (engine_url if engine_url is not None
+                      else "sqlite:///:memory:")
+        self.engine = create_engine(engine_url, echo=echo)
+        self.session_factory = sessionmaker(bind=self.engine)
 
     def create_db(self):
         path = self.engine.url.database
@@ -56,6 +66,7 @@ class CswSlaRepository(CswRepository):
         Base.metadata.create_all(self.engine)
 
     def get_record_by_id(self, id):
-        return self.session.query(Record).first()
+        session = self.session_factory()
+        return session.query(Record).first()
 
 

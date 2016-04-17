@@ -1,8 +1,19 @@
-"""Repository base classes"""
+"""Repository base classes.
+
+A `CswRepository` object is associated with a service. It is the interface
+between pycsw and concrete data repositories, whatever they may be (an ORM,
+a CSV file, etc.). The repository is configured with the following information:
+
+* What typenames it can query;
+* The query languages that it can decode;
+* The correspondence between pycsw's record classes and the internal properties
+  of the data structures.
+
+"""
 
 import logging
-
-from lxml import etree
+import importlib.util
+import os
 
 from ..utilities import ManagedList
 from .. import exceptions
@@ -16,8 +27,19 @@ class CswRepository:
     _query_translators = {}
     query_languages = None
 
-    def __init__(self):
+    def __init__(self, extra_query_translator_modules=None):
         self._typenames = ManagedList(manager=self, related_name="_repository")
+        if extra_query_translator_modules is not None:
+            self.load_query_translators(extra_query_translator_modules)
+
+    @classmethod
+    def load_query_translators(cls, query_translator_modules):
+        for module_path in query_translator_modules:
+            name = os.path.splitext(os.path.basename(module_path))[0]
+            spec = importlib.util.spec_from_file_location(name=name,
+                                                          location=module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
     @property
     def typenames(self):
