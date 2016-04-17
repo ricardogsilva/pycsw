@@ -35,7 +35,6 @@ class CswTypenameProperty:
         self.__class__.__counter += 1
         self.public_name = public_name
         self.namespace = namespace
-        self.prefix = prefix
         self.queryable = queryable
         self.returnable = returnable
         self.mapped_to = mapped_to
