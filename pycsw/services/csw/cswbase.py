@@ -4,7 +4,7 @@ from lxml import etree
 
 from .. import servicebase
 from ... import exceptions
-from ...httprequest import HttpVerb
+from ...exceptions import OPERATION_NOT_SUPPORTED
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class CswService(servicebase.Service):
                 elif service_ok and info["version"] is None and is_default:
                     schema_processor_to_use = processor
                     break
-            except exceptions.CswError:
+            except exceptions.PycswError:
                 logger.debug("SchemaProcessor {} cannot accept "
                              "request".format(processor))
         else:
@@ -98,52 +98,45 @@ class CswOgcSchemaProcessor(servicebase.SchemaProcessor):
 class CswOgcKvpProcessor(CswOgcSchemaProcessor):
 
     def parse_general_request_info(self, request):
-        return {
-            "request": etree.QName(request.exml).localname,
-            "service": request.exml.get("service"),
-            "version": request.exml.get("version"),
-        }
+        try:
+            info = {
+                "request": request.parameters.get("request"),
+                "service": request.parameters.get("service"),
+                "version": request.parameters.get("version"),
+            }
+        except KeyError:
+            raise exceptions.PycswError("Processor {} unable to parse "
+                                        "general request info".format(self))
+        else:
+            return info
 
     def process_request(self, request):
         """Process an incoming request with the input operation."""
         try:
             request_info = self.parse_general_request_info(request)
-            result = {
-                "getCapabilities": self.process_get_capabilities,
-            }.get(request_info["request"])(request)
-        # TODO: catch a possible exception thrown by etree
-        except KeyError:  # this schema processor does not parse the operation
-            raise exceptions.CswError()
-        else:
-            return result
-
-    def process_get_capabilities(self, request):
-        """Process CSW GetCapabilities operation."""
-        try:
             operation = self.service.get_enabled_operation(
-                "GetCapabilities")
-        except TypeError:  # the operation doesn't exist or isn't enabled
-            raise exceptions.CswError()
+                request_info["request"])
+            op_parameters = operation.extract_kvp_parameters(request)
+            result = operation(**op_parameters)
+        except exceptions.CswError:
+            #TODO: confirm if this is necessary in order to prevent the more
+            # general exception clause below from catching CswErrors
+            raise
+        except exceptions.PycswError:  # the operation doesn't exist or isn't enabled
+            raise exceptions.CswError(code=OPERATION_NOT_SUPPORTED)
         else:
-            if HttpVerb.GET in operation.allowed_http_verbs:
-                sections = request.parameters.get("sections")
-                accept_versions = request.parameters.get("acceptVersions")
-                accept_formats = request.parameters.get("acceptFormats")
-                update_sequence = request.parameters.get("updateSequence")
-                result = operation(sections=sections,
-                                   accept_versions=accept_versions,
-                                   accept_formats=accept_formats,
-                                   update_sequence=update_sequence)
-            else:  # the operation does not respond to the input HTTP method
-                raise exceptions.CswError()
             return result
 
 
 class CswOgcPostProcessor(CswOgcSchemaProcessor):
 
     def parse_general_request_info(self, request):
-        return {
-            "request": request.parameters.get("request"),
-            "service": request.parameters.get("service"),
-            "version": request.parameters.get("version"),
-        }
+        try:
+            info = {
+                "request": etree.QName(request.exml).localname,
+                "service": request.exml.get("service"),
+                "version": request.exml.get("version"),
+            }
+        except etree.XMLSyntaxError:
+            raise exceptions.PycswError("Processor {} unable to parse "
+                                        "general request info.".format(self))

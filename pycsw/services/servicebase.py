@@ -3,6 +3,7 @@
 import logging
 
 from .. import utilities
+from .. import exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class Service:
     def get_enabled_operation(self, name):
         """Return the operation that matches the input name.
 
-        If an operation with a name that is euqla to the input name exists
+        If an operation with a name that is equal to the input name exists
         and is enabled it is returned.
 
         """
@@ -90,7 +91,8 @@ class Service:
                 result = operation
                 break
         else:
-            result = None
+            raise exceptions.PycswError("Operation {} is not "
+                                        "enabled".format(name))
         return result
 
     def get_schema_processor(self, request):

@@ -159,6 +159,10 @@ class PycswServer:
             enabled=True,
             allowed_http_verbs={HttpVerb.GET}
         )
+        get_record_by_id = base.GetRecordById202Operation(
+            enabled=True,
+            allowed_http_verbs={HttpVerb.GET}
+        )
         csw202_service = csw202.Csw202Service(
             distributed_search=cswbase.CswDistributedSearch(),
             repository=repository,
@@ -166,6 +170,7 @@ class PycswServer:
         csw202_service.schema_processors.append(post_processor)
         csw202_service.schema_processors.append(kvp_processor)
         csw202_service.operations.append(get_capabilities)
+        csw202_service.operations.append(get_record_by_id)
         logger.debug("Initialized csw202 service")
         return csw202_service
 

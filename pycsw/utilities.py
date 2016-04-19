@@ -10,6 +10,18 @@ def lazy_import_dependency(python_path, type_=None):
     return result
 
 
+def query_translator(repository_class_path, *typenames):
+    """A parametrized decorator to apply on query translator functions."""
+
+    def decorate(func):
+        module_path, class_name = repository_class_path.rsplit(".", maxsplit=1)
+        repository_class = lazy_import_dependency(module_path,
+                                                  type_=class_name)
+        repository_class._query_translators[",".join(typenames)] = func
+        return func
+    return decorate
+
+
 class ManagedList:
     """A list where elements have a bidirectional relationship with a manager.
 

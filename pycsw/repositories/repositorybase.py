@@ -73,13 +73,3 @@ class CswRepository:
         raise NotImplementedError
 
 
-
-def query_translator(repository_class, *typenames):
-    """A parametrized decorator to apply on query translator functions."""
-
-    def decorate(func):
-        repository_class._query_translators[",".join(typenames)] = func
-        return func
-    return decorate
-
-

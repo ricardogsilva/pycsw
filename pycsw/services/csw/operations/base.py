@@ -6,6 +6,7 @@ from ....exceptions import CswError
 from ....exceptions import VERSION_NEGOTIATION_FAILED
 from ....exceptions import INVALID_PARAMETER_VALUE
 from ....exceptions import INVALID_UPDATE_SEQUENCE
+from ....exceptions import NO_APPLICABLE_CODE
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,14 @@ class CswOperation:
     @property
     def service(self):
         return self._service
+
+    def extract_kvp_parameters(self, request):
+        """Reimplement in child classes."""
+        raise NotImplementedError
+
+    def extract_xml_parameters(self, request):
+        """Reimplement in child classes."""
+        raise NotImplementedError
 
 
 class OperationParameter:
@@ -136,6 +145,18 @@ class GetCapabilities202Operation(CswOperation):
             "FilterCapabilities": self.get_filter_capabilities,
         }
 
+    def extract_kvp_parameters(self, request):
+        if HttpVerb.GET in self.allowed_http_verbs:
+            result = {
+                "sections": request.parameters.get("sections"),
+                "accept_versions": request.parameters.get("acceptVersions"),
+                "accept_formats": request.parameters.get("acceptFormats"),
+                "update_sequence": request.parameters.get("updateSequence"),
+            }
+        else:  # the operation does not respond to the input HTTP method
+            raise CswError(code=NO_APPLICABLE_CODE)
+        return result
+
     def get_service_to_use(self, accept_versions):
         service = None
         if any(accept_versions):
@@ -216,3 +237,34 @@ class GetCapabilities202Operation(CswOperation):
 
     def get_contents(self):
         pass
+
+
+class GetRecordById202Operation(CswOperation):
+    _name = "GetRecordById"
+
+    def __init__(self, enabled=True, allowed_http_verbs=None):
+        super().__init__(enabled=enabled,
+                         allowed_http_verbs=allowed_http_verbs)
+        self.parameters = [
+            OperationParameter(name="Id"),
+            OperationParameter(name="ElementSetName"),
+            OperationParameter(name="outputFormat"),
+            OperationParameter(name="outputSchema"),
+        ]
+        self.constraints = []
+
+    def __call__(self, id=None, element_set_name=None,
+                 output_format=None, output_schema=None):
+        logger.debug("{0.__class__.__name__} called".format(self))
+
+    def extract_kvp_parameters(self, request):
+        if HttpVerb.GET in self.allowed_http_verbs:
+            result = {
+                "id": ",".split(request.parameters.get("Id")),
+                "element_set_name": request.parameters.get("ElementSetName"),
+                "output_format": request.parameters.get("outputFormat"),
+                "output_schema": request.parameters.get("outputSchema"),
+            }
+        else:  # the operation does not respond to the input HTTP method
+            raise CswError(code=NO_APPLICABLE_CODE)
+        return result

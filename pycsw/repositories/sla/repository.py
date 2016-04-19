@@ -34,9 +34,9 @@ from sqlalchemy.orm import sessionmaker
 
 from ... import exceptions
 from ..repositorybase import CswRepository
-from . import querytranslators  # loads default query translators
 from .models import Base
 from .models import Record
+from . import querytranslators
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,12 @@ logger = logging.getLogger(__name__)
 class CswSlaRepository(CswRepository):
     """SQLAlchemy base repository class."""
 
-    _query_translators = {}
+    _query_translators = {
+        "csw:Record": querytranslators.translate_csw_record,
+        "gmd:MD_Metadata": querytranslators.translate_gmd_md_record,
+        "rim:SomeType,rim:AnotherType":
+            querytranslators.translate_ebrim_record,
+    }
     engine = None
     session = None
 
