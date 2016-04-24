@@ -154,3 +154,11 @@ class SchemaProcessor:
 
     def process_request(self, request):
         raise NotImplementedError
+
+
+class ResponseRenderer:
+    output_format = None
+    output_schema = None
+
+    def render(self, response):
+        raise NotImplementedError

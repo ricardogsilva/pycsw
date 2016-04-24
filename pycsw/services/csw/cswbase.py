@@ -4,7 +4,9 @@ from lxml import etree
 
 from .. import servicebase
 from ... import exceptions
+from ... httprequest import HttpVerb
 from ...exceptions import OPERATION_NOT_SUPPORTED
+from ...exceptions import NO_APPLICABLE_CODE
 
 logger = logging.getLogger(__name__)
 
@@ -110,22 +112,43 @@ class CswOgcKvpProcessor(CswOgcSchemaProcessor):
         else:
             return info
 
-    def process_request(self, request):
-        """Process an incoming request with the input operation."""
+    def parse_request(self, request):
         try:
             request_info = self.parse_general_request_info(request)
             operation = self.service.get_enabled_operation(
                 request_info["request"])
-            op_parameters = operation.extract_kvp_parameters(request)
-            result = operation(**op_parameters)
+            if HttpVerb.GET in operation.allowed_http_verbs:
+                parameter_parser = {
+                    "GetCapabilities": self.parse_get_capabilities,
+                    "GetRecordById": self.parse_get_record_by_id,
+                }.get(operation.name)
+                parameters = parameter_parser(request)
+            else: # the operation does not respond to the input HTTP method
+                raise exceptions.CswError(code=NO_APPLICABLE_CODE)
         except exceptions.CswError:
-            #TODO: confirm if this is necessary in order to prevent the more
-            # general exception clause below from catching CswErrors
-            raise
-        except exceptions.PycswError:  # the operation doesn't exist or isn't enabled
+            raise  # do we really need to do this?
+        except (TypeError, exceptions.PycswError):
             raise exceptions.CswError(code=OPERATION_NOT_SUPPORTED)
         else:
-            return result
+            return operation, parameters
+
+    def parse_get_capabilities(self, request):
+        result = {
+            "sections": request.parameters.get("sections"),
+            "accept_versions": request.parameters.get("acceptVersions"),
+            "accept_formats": request.parameters.get("acceptFormats"),
+            "update_sequence": request.parameters.get("updateSequence"),
+        }
+        return result
+
+    def parse_get_record_by_id(self, request):
+        result = {
+            "id": ",".split(request.parameters.get("Id")),
+            "element_set_name": request.parameters.get("ElementSetName"),
+            "output_format": request.parameters.get("outputFormat"),
+            "output_schema": request.parameters.get("outputSchema"),
+        }
+        return result
 
 
 class CswOgcPostProcessor(CswOgcSchemaProcessor):
