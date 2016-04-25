@@ -22,6 +22,7 @@ from . import exceptions
 from .services.csw import cswbase
 from .services.csw import csw202
 from .services.csw.operations import operationbase
+from .services.csw.responserenderers import renderers
 from .httprequest import HttpVerb
 from .repositories.sla.repository import CswSlaRepository
 from . import utilities
@@ -145,6 +146,7 @@ class PycswServer:
                 "ows:BoundingBox",
             ],
         }
+        # schema_processors
         post_processor = cswbase.CswOgcPostProcessor(
             media_type="application/xml",
             namespaces=ogc_namespaces,
@@ -159,6 +161,7 @@ class PycswServer:
             record_mapping=ogc_record_mapping,
             element_set_names=ogc_element_set_names,
         )
+        # operations
         get_capabilities = operationbase.GetCapabilities202Operation(
             enabled=True,
             allowed_http_verbs={HttpVerb.GET}
@@ -175,6 +178,10 @@ class PycswServer:
         csw202_service.schema_processors.append(kvp_processor)
         csw202_service.operations.append(get_capabilities)
         csw202_service.operations.append(get_record_by_id)
+
+        csw202_service.response_renderers.append(
+            renderers.OgcCswXmlRenderer())
+
         logger.debug("Initialized csw202 service")
         return csw202_service
 

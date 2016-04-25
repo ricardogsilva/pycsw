@@ -1,4 +1,12 @@
-"""Base classes for pycsw services."""
+"""Base classes for pycsw services.
+
+A service has:
+
+* SchemaProcessors, which are used to parse the request
+* Operations, which take care of actaully processing the request
+* ResponseRenderers, that generate the output format requested by the client
+
+"""
 
 import logging
 
@@ -23,6 +31,7 @@ class Service:
     _operations = None
 
     _schema_processors = None
+    _response_renderers = None
 
 
     def __init__(self, title="", abstract="", keywords=None, fees="",
@@ -34,6 +43,8 @@ class Service:
         self.access_constraints = access_constraints
         self._server = None
         self._schema_processors = utilities.ManagedList(
+            manager=self, related_name="_service")
+        self._response_renderers = utilities.ManagedList(
             manager=self, related_name="_service")
         self._operations = utilities.ManagedList(manager=self,
                                                  related_name="_service")
@@ -66,12 +77,13 @@ class Service:
 
     @property
     def schema_processors(self):
-        """Return the available SchemaProcessor objects.
-
-        SchemaProcessors are used to process requests.
-
-        """
+        """Return the available SchemaProcessor objects."""
         return self._schema_processors
+
+    @property
+    def response_renderers(self):
+        """Return the available ResponseRenderer objects."""
+        return self._response_renderers
 
     @property
     def operations(self):
@@ -112,6 +124,18 @@ class Service:
 
         """
 
+        raise NotImplementedError
+
+    def get_renderer(self, operation, parameters):
+        """Get a suitable renderer for the requested operation.
+
+        Parameters
+        ----------
+        operation: pycsw.services.csw.operations.operationbase.CswOperation
+            The operation that was requested.
+        parameters: dict
+            The parameters of the requested operation.
+        """
         raise NotImplementedError
 
 
@@ -157,8 +181,24 @@ class SchemaProcessor:
 
 
 class ResponseRenderer:
+    _service = None
     output_format = None
     output_schema = None
+
+    def __init__(self):
+        self._service = None
+
+    def __repr__(self):
+        return ("{0.__class__.__name__}(output_format={0.output_format!r}, "
+                "output_schema={0.output_schema!r})".format(self))
+
+    def __str__(self):
+        return ("{0.__class__.__name__}({0.output_format}, "
+                "{0.output_schema})".format(self))
+
+    @property
+    def service(self):
+        return self._service
 
     def render(self, response):
         raise NotImplementedError
