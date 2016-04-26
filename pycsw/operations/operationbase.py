@@ -1,17 +1,16 @@
 import logging
-import inspect
 
-from ....httprequest import HttpVerb
-from ....exceptions import CswError
-from ....exceptions import VERSION_NEGOTIATION_FAILED
-from ....exceptions import INVALID_PARAMETER_VALUE
-from ....exceptions import INVALID_UPDATE_SEQUENCE
-from ....exceptions import NO_APPLICABLE_CODE
+from . import parameters
+from pycsw.httprequest import HttpVerb
+from pycsw.exceptions import CswError
+from pycsw.exceptions import VERSION_NEGOTIATION_FAILED
+from pycsw.exceptions import INVALID_PARAMETER_VALUE
+from pycsw.exceptions import INVALID_UPDATE_SEQUENCE
 
 logger = logging.getLogger(__name__)
 
 
-class CswOperation:
+class CswOperationProcessor:
     """Base class for all CSW operations.
 
     All CSW operations, including those used by plugins, should adhere to
@@ -23,7 +22,6 @@ class CswOperation:
 
     _name = ""
     _service = None
-    parameters = None
     constraints = None
     enabled = False
     allowed_http_verbs = None
@@ -48,62 +46,48 @@ class CswOperation:
         return self._service
 
 
-class OperationParameter:
-
-    name = ""
-    allowed_values = ""
-    metadata = None
-
-    def __init__(self, name, allowed_values=None, metadata=None):
-        self.name = name
-        self.allowed_values = (list(allowed_values) if
-                               allowed_values is not None else allowed_values)
-        self.metadata = metadata
-
-    def __str__(self):
-        return "{0.__class__.__name__}(name={0.name})".format(self)
-
-    def __repr__(self):
-        return ("{0.__class__.__name__}(name={0.name!r}, "
-                "allowed_values={0.allowed_values!r}, "
-                "metadata={0.metadata!r})".format(self))
-
-
-class GetCapabilities202Operation(CswOperation):
+class GetCapabilities202OperationProcessor(CswOperationProcessor):
     _name = "GetCapabilities"
 
+    accept_versions = parameters.TextListParameter("AcceptVersions",
+                                                   optional=True)
+    sections = parameters.TextListParameter("Sections", optional=True)
+    accept_formats = parameters.TextListParameter("AcceptFormats",
+                                                  optional=True)
+    update_sequence = parameters.IntParameter("updateSequence",
+                                              optional=True,
+                                              allowed_values=[1],
+                                              default=1)
 
-    def __init__(self, enabled=True, allowed_http_verbs=None):
+
+    def __init__(self, accept_versions=None, sections=None,
+                 accept_formats=None, update_sequence=None,
+                 enabled=True, allowed_http_verbs=None):
         super().__init__(enabled=enabled,
                          allowed_http_verbs=allowed_http_verbs)
         # OGC CSWv2.0.2 mandates that GetCapabilities
         # must accept GET requests
         self.allowed_http_verbs.add(HttpVerb.GET)
-        self.parameters = [
-            OperationParameter(name="AcceptVersions"),
-            OperationParameter(name="Sections",
-                               allowed_values=self._sections_map.keys()),
-            OperationParameter(name="AcceptFormats"),
-            OperationParameter(name="updateSequence", allowed_values=[1]),
-        ]
+        self.__class__.sections.allowed_values = self._sections_map.keys()
+        self.accept_versions = accept_versions
+        self.sections = sections
+        self.accept_formats = accept_formats
+        self.update_sequence = update_sequence
         self.constraints = []
 
-    def __call__(self, accept_versions=None, sections=None,
-                 update_sequence=None, accept_formats=None):
-        logger.debug("{0.__class__.__name__} called".format(self))
-        service_to_use = self.get_service_to_use(accept_versions or [])
+    def __call__(self):
+        service_to_use = self.get_service_to_use()
         if service_to_use is self.service:
-            up_sequence = self.get_parameter(
-                "updateSequence").allowed_values[0]
             result = {
                 "version": self.service.version,
-                "updateSequence": up_sequence,
+                "updateSequence": self.update_sequence,
             }
-            if update_sequence is None or update_sequence < up_sequence:
+            latest = self.__class__.update_sequence.allowed_values[-1]
+            if self.update_sequence < latest:
                 # return full capabilities
-                sections_info = self.get_sections(sections)
+                sections_info = self.get_sections(self.sections)
                 result.update(sections_info)
-            elif update_sequence == up_sequence:
+            elif self.update_sequence == latest:
                 pass  # result is complete, no need to add anything else
             else:
                 raise CswError(code=INVALID_UPDATE_SEQUENCE)
@@ -111,16 +95,14 @@ class GetCapabilities202Operation(CswOperation):
             # check if the GetCapabilities operation of the service_to_use
             # is enabled if so, process it and return the result
             other_get_capabilities = service_to_use.get_enabled_operation(
-                "GetCapabilities")
+                "GetCapabilities", accept_versions=self.accept_versions,
+                sections=self.sections, accept_formats=self.accept_formats,
+                update_sequence=self.update_sequence
+            )
+            result = other_get_capabilities()
             if other_get_capabilities is not None:
                 logger.debug("Transferring operation {0.name} to "
                              "service {1}...".format(self, service_to_use))
-                result = other_get_capabilities(
-                    accept_versions=accept_versions,
-                    sections=sections,
-                    update_sequence=update_sequence,
-                    accept_formats=accept_formats
-                )
             else:
                 raise CswError(code=VERSION_NEGOTIATION_FAILED)
         else:
@@ -137,26 +119,16 @@ class GetCapabilities202Operation(CswOperation):
             "FilterCapabilities": self.get_filter_capabilities,
         }
 
-    def get_service_to_use(self, accept_versions):
+    def get_service_to_use(self):
         service = None
-        if any(accept_versions):
-            for requested in accept_versions:
-                service = self.service.server.get_service(
-                    self.service.name, requested)
-                if service is not None:
-                    break
+        for requested in self.accept_versions:
+            service = self.service.server.get_service(
+                self.service.name, requested)
+            if service is not None:
+                break
         else:
             service = self.service.server.default_csw_service
         return service
-
-    def get_parameter(self, name):
-        for parameter in self.parameters:
-            if parameter.name == name:
-                result = parameter
-                break
-        else:
-            result = None
-        return result
 
     def get_sections(self, sections=None):
         sections = list(sections) if sections is not None else []
@@ -219,20 +191,28 @@ class GetCapabilities202Operation(CswOperation):
         pass
 
 
-class GetRecordById202Operation(CswOperation):
+class GetRecordById202Operation(CswOperationProcessor):
     _name = "GetRecordById"
 
-    def __init__(self, enabled=True, allowed_http_verbs=None):
+    id = parameters.TextParameter("Id")
+    element_set_name = parameters.TextParameter(
+        "ElementSetName", optional=True,
+        allowed_values=["brief", "summary", "full"],
+        default="brief"
+    )
+    output_format = parameters.TextParameter("outputFormat", optional=True,
+                                             default="application/xml")
+    output_schema = parameters.TextParameter(
+        "outputSchema",
+        optional=True,
+        default="http://www.opengis.net/cat/csw/2.02"
+    )
+
+    def __init__(self, id, element_set_name=None, output_format=None,
+                 output_schema=None, enabled=True, allowed_http_verbs=None):
         super().__init__(enabled=enabled,
                          allowed_http_verbs=allowed_http_verbs)
-        self.parameters = [
-            OperationParameter(name="Id"),
-            OperationParameter(name="ElementSetName"),
-            OperationParameter(name="outputFormat"),
-            OperationParameter(name="outputSchema"),
-        ]
         self.constraints = []
 
-    def __call__(self, id=None, element_set_name=None,
-                 output_format=None, output_schema=None):
+    def __call__(self):
         logger.debug("{0.__class__.__name__} called".format(self))
