@@ -18,15 +18,15 @@
 
 import logging
 
+from pycsw.operations import operationbase
+from . import contacts
 from . import exceptions
-from .services.csw import cswbase
-from .services.csw import csw202
-from .services.csw.operations import operationbase
-from .services.csw.responserenderers import renderers
+from . import utilities
 from .httprequest import HttpVerb
 from .repositories.sla.repository import CswSlaRepository
-from . import utilities
-from . import contacts
+from .services.csw import csw202
+from .services.csw import cswbase
+from .services.csw.responserenderers import renderers
 
 logger = logging.getLogger(__name__)
 
