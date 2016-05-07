@@ -17,11 +17,11 @@ class TestPycswServer:
         assert csw202_service.identifier == "CSW_v2.0.2"
 
     def test_default_csw_service(self):
-        server = server.PycswServer()
-        assert server.default_csw_service.version == "2.0.2"
+        s = server.PycswServer()
+        assert s.default_csw_service.version == "2.0.2"
 
     def test_get_schema_processor_csw_kvp_get_capabilities_request(self):
-        server = server.PycswServer()
+        s = server.PycswServer()
         params = {
             "service": "CSW",
             "request": "GetCapabilities",
@@ -29,7 +29,7 @@ class TestPycswServer:
         request = httprequest.PycswHttpRequest(method=httprequest.HttpVerb.GET,
                                                parameters=params,
                                                content_type="")
-        schema_processor = server.get_schema_processor(request)
+        schema_processor = s.get_schema_processor(request)
         assert isinstance(schema_processor, cswbase.CswOgcSchemaProcessor)
 
     def test_get_schema_processor_csw_post_get_capabilities(self):
@@ -43,13 +43,13 @@ class TestPycswServer:
         """.strip()
         request = httprequest.PycswHttpRequest(
             method=httprequest.HttpVerb.POST, body=body.encode())
-        server = server.PycswServer()
-        schema_processor = server.get_schema_processor(request)
+        s = server.PycswServer()
+        schema_processor = s.get_schema_processor(request)
         assert isinstance(schema_processor,
                           cswbase.CswOgcPostProcessor)
 
     def test_process_request_csw_kvp_get_capabilities_request(self):
-        server = server.PycswServer()
+        s = server.PycswServer()
         params = {
             "service": "CSW",
             "request": "GetCapabilities",
@@ -57,5 +57,9 @@ class TestPycswServer:
         request = httprequest.PycswHttpRequest(method=httprequest.HttpVerb.GET,
                                                parameters=params,
                                                content_type="")
-        schema_processor = server.get_schema_processor(request)
-        response = schema_processor.process_request(request)
+        schema_processor = s.get_schema_processor(request)
+        operation, parameters = schema_processor.parse_request(request)
+        operation.prepare(**parameters)
+        renderer = schema_processor.service.get_renderer(operation)
+        response = operation()
+        rendered_response = renderer.render(response)
