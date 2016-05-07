@@ -90,6 +90,21 @@ class Service:
         """Return the available operations."""
         return self._operations
 
+    @property
+    def default_output_format(self):
+        possible = "text/xml"
+        if possible in [r.output_format for r in self.response_renderers]:
+            result = possible
+        else:  # lets get the first media type
+            for r in self.response_renderers:
+                if r.output_format is not None:
+                    result = r.output_format
+                    break
+            else:  # could not get a default media type
+                result = None
+        return result
+
+
     def get_enabled_operation(self, name):
         """Return the operation that matches the input name.
 
@@ -103,7 +118,7 @@ class Service:
                 result = operation
                 break
         else:
-            raise exceptions.PycswError("Operation {} is not "
+            raise exceptions.PycswError("Operation {!r} is not "
                                         "enabled".format(name))
         return result
 
@@ -126,15 +141,15 @@ class Service:
 
         raise NotImplementedError
 
-    def get_renderer(self, operation, parameters):
+    def get_renderer(self, operation, request):
         """Get a suitable renderer for the requested operation.
 
         Parameters
         ----------
         operation: pycsw.services.csw.operations.operationbase.CswOperation
             The operation that was requested.
-        parameters: dict
-            The parameters of the requested operation.
+        request: pycsw.httprequest.PycswHttpRequest
+            The original request
         """
         raise NotImplementedError
 
@@ -159,9 +174,13 @@ class SchemaProcessor:
     namespaces = {}
     media_type = ""
 
-    def __init__(self, namespaces=None, media_type=""):
+    def __init__(self, namespaces=None):
         self.namespaces = namespaces.copy() if namespaces is not None else {}
         self._service = None
+
+    def __str__(self):
+        return "{0.__class__.__name__}(media_type={0.media_type!r})".format(
+            self)
 
     @property
     def service(self):
@@ -176,7 +195,7 @@ class SchemaProcessor:
         """
         raise NotImplementedError
 
-    def process_request(self, request):
+    def parse_request(self, request):
         raise NotImplementedError
 
 
@@ -201,4 +220,7 @@ class ResponseRenderer:
         return self._service
 
     def render(self, response):
+        raise NotImplementedError
+
+    def can_render(self, operation, request):
         raise NotImplementedError

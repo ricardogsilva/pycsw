@@ -25,9 +25,9 @@ setup(
     maintainer_email="tomkralidis@gmail.com",
     url="http://pycsw.org/",
     install_requires=[
-        "lxml==3.5.0",
-        "werkzeug==0.11.5",
+        "lxml",
         "sqlalchemy",
+        "werkzeug",
     ],
     packages=find_packages(),
     entry_points={

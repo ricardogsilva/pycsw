@@ -67,6 +67,9 @@ class CswService(servicebase.Service):
                 service_ok = info["service"] == self.name
                 version_ok = info["version"] == self.version
                 is_default = self.server.default_csw_service is self
+                logger.debug("service_ok: {}".format(service_ok))
+                logger.debug("version_ok: {}".format(version_ok))
+                logger.debug("is_default: {}".format(is_default))
                 if service_ok and version_ok:
                     schema_processor_to_use = processor
                     break
@@ -87,9 +90,9 @@ class CswOgcSchemaProcessor(servicebase.SchemaProcessor):
     record_mapping = None
     element_set_names = None
 
-    def __init__(self, namespaces, media_type=None, type_names=None,
+    def __init__(self, namespaces, type_names=None,
                  record_mapping=None, element_set_names=None):
-        super().__init__(namespaces=namespaces, media_type=media_type)
+        super().__init__(namespaces=namespaces)
         self.type_names = type_names if type_names is not None else []
         self.record_mapping = (record_mapping if record_mapping is not None
                                else {})
@@ -152,6 +155,7 @@ class CswOgcKvpProcessor(CswOgcSchemaProcessor):
 
 
 class CswOgcPostProcessor(CswOgcSchemaProcessor):
+    media_type = "text/xml"
 
     def parse_general_request_info(self, request):
         try:

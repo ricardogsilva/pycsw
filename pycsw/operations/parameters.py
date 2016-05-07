@@ -1,5 +1,8 @@
 """Operation parameter classes for pycsw."""
 
+from ..exceptions import CswError
+from ..exceptions import INVALID_PARAMETER_VALUE
+
 
 class OperationParameter:
     __counter = 0
@@ -36,7 +39,8 @@ class OperationParameter:
         if instance is None:
             result = self
         else:
-            result = getattr(instance, self.storage_name)
+            possible = getattr(instance, self.storage_name)
+            result = possible if possible is not None else self.default
         return result
 
     def __set__(self, instance, value):
@@ -50,23 +54,23 @@ class OperationParameter:
 class IntParameter(OperationParameter):
 
     def validate(self, value):
-        if self.optional and value is None:
-            result = self.default
+        if value is None:
+            result = value
         else:
             possible = int(value)
             if (possible in self.allowed_values or
                         len(self.allowed_values) == 0):
                 result = possible
             else:
-                raise ValueError
+                raise ValueError("Value {!r} is not allowed".format(value))
         return result
 
 
 class TextParameter(OperationParameter):
 
     def validate(self, value):
-        if self.optional and value is None:
-            result = self.default
+        if value is None:
+            result = value
         else:
             possible = str(value)
             if len(self.allowed_values) == 0:
@@ -74,17 +78,15 @@ class TextParameter(OperationParameter):
             elif possible in self.allowed_values:
                 result = possible
             else:
-                raise ValueError("Value {} is not allowed".format(possible))
+                raise ValueError("Value {!r} is not allowed".format(possible))
         return result
 
 
 class BooleanParameter(OperationParameter):
 
     def validate(self, value):
-        if self.optional and value is None:
-            result = self.default
-        elif not self.optional and value is None:
-            raise ValueError("Value is mandatory")
+        if value is None:
+            result = value
         else:
             result = bool(value)
         return result
@@ -92,11 +94,11 @@ class BooleanParameter(OperationParameter):
 
 class TextListParameter(OperationParameter):
 
-    def validate(self, values):
-        list_values = list(values) if values is not None else []
-        if self.optional and len(list_values) == 0:
-            result = list(self.default)
+    def validate(self, value):
+        if value is None:
+            result = value
         else:
+            list_values = list(value)
             result = []
             for possible_value in (str(v) for v in list_values):
                 if len(self.allowed_values) == 0:
@@ -107,5 +109,3 @@ class TextListParameter(OperationParameter):
                     raise ValueError("Value {} is not "
                                      "allowed".format(possible_value))
         return result
-
-

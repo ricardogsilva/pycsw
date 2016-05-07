@@ -5,10 +5,12 @@
 >>> try:
 >>>     schema_processor = server.get_schema_processor(request)
 >>>     operation, parameters = schema_processor.parse_request(request)
+>>>     operation.prepare(**parameters)
 >>>     service = schema_processor.service
->>>     response_renderer = service.get_renderer(operation, parameters)
->>>     response = operation(**parameters)
->>>     rendered_response = response_renderer.render(response)
+>>>     response_renderer = service.get_renderer(operation, request)
+>>>     response = operation()
+>>>     rendered_response = response_renderer.render(element=operation.name,
+>>>                                                  **response)
 >>> except PycswError as err:
 >>>     response = server.generate_error_response(err)
 >>> finally:  # wrap our response as a werkzeug response
@@ -18,7 +20,6 @@
 
 import logging
 
-from pycsw.operations import operationbase
 from . import contacts
 from . import exceptions
 from . import utilities
@@ -27,6 +28,9 @@ from .repositories.sla.repository import CswSlaRepository
 from .services.csw import csw202
 from .services.csw import cswbase
 from .services.csw.responserenderers import renderers
+from .operations.csw.getcapabilities import (
+    GetCapabilities202OperationProcessor)
+from .operations.csw.getrecordbyid import GetRecordById202Operation
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +152,6 @@ class PycswServer:
         }
         # schema_processors
         post_processor = cswbase.CswOgcPostProcessor(
-            media_type="application/xml",
             namespaces=ogc_namespaces,
             type_names=["csw:Record"],
             record_mapping=ogc_record_mapping,
@@ -162,11 +165,11 @@ class PycswServer:
             element_set_names=ogc_element_set_names,
         )
         # operations
-        get_capabilities = operationbase.GetCapabilities202Operation(
+        get_capabilities = GetCapabilities202OperationProcessor(
             enabled=True,
             allowed_http_verbs={HttpVerb.GET}
         )
-        get_record_by_id = operationbase.GetRecordById202Operation(
+        get_record_by_id = GetRecordById202Operation(
             enabled=True,
             allowed_http_verbs={HttpVerb.GET}
         )
@@ -249,17 +252,23 @@ class PycswServer:
         """
         csw_versions = [s.version for s in self.services if s.name == "CSW"]
 
-        for csw_service in (s for s in self.services if s.name == "CSW"):
-            get_capabilities = csw_service.get_enabled_operation(
-                "GetCapabilities")
-            if get_capabilities is not None:
-                accept_versions = get_capabilities.get_parameter(
-                    "AcceptVersions")
-                accept_versions.allowed_values = csw_versions
-                accept_formats = get_capabilities.get_parameter(
-                    "AcceptFormats")
-                accept_formats.allowed_values = [
-                    p.media_type for p in csw_service.schema_processors if
-                    p.media_type
-                ]
+        for service in (s for s in self.services if s.name == "CSW"):
+            try:
+               op = service.get_enabled_operation("GetCapabilities")
+            except exceptions.PycswError:
+                continue  # this service doesn't have a GetCapabilities
+            else:
+                allowed_values = {
+                    "accept_versions": csw_versions,
+                    "accept_formats": [p.media_type for p in
+                                       service.schema_processors if
+                                       p.media_type],
+                }
+                defaults = {
+                    "accept_versions": [self.default_csw_service.version],
+                    "accept_formats": [
+                        self.default_csw_service.default_output_format],
+                }
+                op.update_parameter_allowed_values(**allowed_values)
+                op.update_parameter_defaults(**defaults)
 
