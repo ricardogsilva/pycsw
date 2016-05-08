@@ -10,3 +10,19 @@ pycsw allows for the publishing and discovery of geospatial metadata. Existing r
 pycsw is Open Source, released under an MIT license, and runs on all major platforms (Windows, Linux, Mac OS X).
 
 Please read the docs at http://pycsw.org/docs for more information.
+
+Installing PYXB
+
+PyXB is used to parse and validate XML entities. Install it with the following:
+
+mkdir build && \
+cd build && \
+pip download pyxb && \
+tar -zxvf PyXB-1.2.4.tar.gz  && \
+cd PyXB-1.2.4 && \
+export PYXB_ROOT=$(pwd) && \
+maintainer/genbundles @ && \
+pyxb/bundles/opengis/scripts/genbind && \
+pip install . && \
+cd .. && \
+rm -rf build

@@ -67,6 +67,8 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
         -------
         dict
             A mapping with the capabilities of the requested service.
+        int
+            The HTTP status code of the operation
 
         """
 
@@ -104,7 +106,7 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
                 )
         else:
             raise CswError(code=VERSION_NEGOTIATION_FAILED)
-        return result
+        return result, 200
 
     def update_parameter_defaults(self, accept_versions=None, sections=None,
                                   accept_formats=None, update_sequence=None):
@@ -244,9 +246,18 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
 
 
     def get_service_identification(self):
+        csw_versions = []
+        for csw_service in (s for s in self.service.server.services if
+                            s.name == "CSW"):
+            try:
+                csw_service.get_enabled_operation(self.name)
+                csw_versions.append(csw_service.version)
+            except PycswError:  # GetCapabilities operation is not enabled
+                pass
+
         return {
             "ServiceType": self.service.name,
-            "ServiceTypeVersion": self.service.version,
+            "ServiceTypeVersion": csw_versions,
             "Title": self.service.title,
             "Abstract": self.service.abstract,
             "Keywords": self.service.keywords,

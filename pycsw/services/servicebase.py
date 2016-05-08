@@ -24,6 +24,7 @@ class Service:
     keywords = None
     fees = ""
     access_constraints = ""
+    namespaces = {}
 
     _name = ""
     _version = ""
@@ -35,12 +36,13 @@ class Service:
 
 
     def __init__(self, title="", abstract="", keywords=None, fees="",
-                 access_constraints=""):
+                 access_constraints="", namespaces=None):
         self.title = title
         self.abstract = abstract
         self.keywords = list(keywords) if keywords is not None else []
         self.fees = fees
         self.access_constraints = access_constraints
+        self.namespaces = dict(namespaces) if namespaces is not None else {}
         self._server = None
         self._schema_processors = utilities.ManagedList(
             manager=self, related_name="_service")
@@ -174,8 +176,7 @@ class SchemaProcessor:
     namespaces = {}
     media_type = ""
 
-    def __init__(self, namespaces=None):
-        self.namespaces = namespaces.copy() if namespaces is not None else {}
+    def __init__(self):
         self._service = None
 
     def __str__(self):

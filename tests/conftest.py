@@ -147,7 +147,7 @@ def _configure_functional_get_tests(metafunc, current_path, expected_dir):
     test_data = []
     test_ids = []
     for suite in metafunc.config.getoption("suite") or FUNCTIONAL_SUITES:
-        requests_file = (current_path.parent / "functioanltests" / "suites" /
+        requests_file = (current_path.parent / "functionaltests" / "suites" /
                          suite / "get" / "requests.txt")
         try:
             with open(str(requests_file), encoding="utf-8") as fh:

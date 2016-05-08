@@ -6,6 +6,7 @@ pytest-cov==2.2.1
 pytest-flake8==0.2
 pytest-html==1.8.0
 pytest-catchlog==1.2.2
+PyXB==1.2.4
 requests==2.10.0
 Sphinx==1.4.1
 sqlalchemy==1.0.12

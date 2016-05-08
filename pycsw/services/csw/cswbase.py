@@ -36,8 +36,11 @@ class CswService(servicebase.Service):
     distributed_search = None
     repository = None
 
-    def __init__(self, repository=None, distributed_search=None):
-        super().__init__()
+    def __init__(self, title="", abstract="", keywords=None, fees="",
+                 access_constraints="", namespaces=None, repository=None,
+                 distributed_search=None):
+        super().__init__(title=title, abstract=abstract, keywords=keywords,
+                         fees=fees, namespaces=namespaces)
         self.distributed_search = (distributed_search if
                                    distributed_search is not None
                                    else CswDistributedSearch())
@@ -90,9 +93,9 @@ class CswOgcSchemaProcessor(servicebase.SchemaProcessor):
     record_mapping = None
     element_set_names = None
 
-    def __init__(self, namespaces, type_names=None,
-                 record_mapping=None, element_set_names=None):
-        super().__init__(namespaces=namespaces)
+    def __init__(self, type_names=None, record_mapping=None,
+                 element_set_names=None):
+        super().__init__()
         self.type_names = type_names if type_names is not None else []
         self.record_mapping = (record_mapping if record_mapping is not None
                                else {})

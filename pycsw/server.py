@@ -8,13 +8,13 @@
 >>>     operation.prepare(**parameters)
 >>>     service = schema_processor.service
 >>>     response_renderer = service.get_renderer(operation, request)
->>>     response = operation()
->>>     rendered_response = response_renderer.render(element=operation.name,
+>>>     response, status_code = operation()
+>>>     rendered, headers = response_renderer.render(element=operation.name,
 >>>                                                  **response)
 >>> except PycswError as err:
 >>>     response = server.generate_error_response(err)
 >>> finally:  # wrap our response as a werkzeug response
->>>     return rendered_response
+>>>     return rendered_response, status_code, headers
 
 """
 
@@ -89,13 +89,6 @@ class PycswServer:
     @classmethod
     def setup_csw202_service(cls, repository=None):
         """Create the CSW version 2.0.2 service."""
-        ogc_namespaces = {
-            "csw": "http://www.opengis.net/cat/csw/2.0.2",
-            "dc": "http://purl.org/dc/elements/1.1/",
-            "dct": "http://purl.org/dc/terms/",
-            "ows": "http://www.opengis.net/ows",
-
-        }
         ogc_record_mapping = {
             "title": "dc:title",
             "creator": "dc:creator",
@@ -152,14 +145,12 @@ class PycswServer:
         }
         # schema_processors
         post_processor = cswbase.CswOgcPostProcessor(
-            namespaces=ogc_namespaces,
             type_names=["csw:Record"],
             record_mapping=ogc_record_mapping,
             element_set_names=ogc_element_set_names,
         )
 
         kvp_processor = cswbase.CswOgcKvpProcessor(
-            namespaces=ogc_namespaces,
             type_names=["csw:Record"],
             record_mapping=ogc_record_mapping,
             element_set_names=ogc_element_set_names,
@@ -234,6 +225,8 @@ class PycswServer:
             schema_processor = service.get_schema_processor(request)
             if schema_processor is not None:
                 # stop on the first suitable service
+                logger.info("{} can handle the request".format(
+                    schema_processor))
                 return schema_processor
         else:
             raise exceptions.PycswError("Could not find a suitable schema "

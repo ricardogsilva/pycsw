@@ -9,6 +9,8 @@ MANIFEST
 # testing artifacts
 tests/index.html
 tests/results
+tests/report.html
+tests/.coverage
 
 # test configurations
 /default.cfg

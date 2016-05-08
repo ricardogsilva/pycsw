@@ -30,18 +30,31 @@ def application(request):
     pycsw_server = server.PycswServer()
     try:
         schema_processor = pycsw_server.get_schema_processor(pycsw_request)
+        logger.debug("selected schema_processor: {}".format(schema_processor))
         operation, parameters = schema_processor.parse_request(pycsw_request)
+        logger.debug("Parsed request. Operation: {} - "
+                     "Parameters: {}".format(operation, parameters))
         operation.prepare(**parameters)
+        logger.debug("Prepared operation for processing: {}".format(
+            operation.prepared_parameters))
         service = schema_processor.service
         response_renderer = service.get_renderer(operation, pycsw_request)
-        response = operation()
-        rendered_response = response_renderer.render(operation.name,
+        logger.debug("Selected response_renderer: "
+                     "{}".format(response_renderer))
+        response, status_code = operation()
+        logger.debug("Operation response: {}".format(response))
+        logger.debug("Operation status code: {}".format(status_code))
+        rendered, headers = response_renderer.render(operation.name,
                                                      **response)
+        logger.debug("Rendered response: {}".format(rendered))
+        logger.debug("Response HTTP headers: {}".format(headers))
     except exceptions.PycswError:
         raise
         #response = pycsw_server.generate_error_response(err)
     else:
-        werkzeug_response = Response(rendered_response)
+        werkzeug_response = Response(rendered, status=status_code,
+                                     headers=headers)
+        logger.debug("werkzeug response: {}".format(werkzeug_response))
         return werkzeug_response
 
 

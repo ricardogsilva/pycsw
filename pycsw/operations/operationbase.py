@@ -30,6 +30,9 @@ class OperationProcessor:
     def __str__(self):
         return "{0.__class__.__name__}({0.service}, {0.name})".format(self)
 
+    def __call__(self):
+        raise NotImplementedError
+
     @property
     def service(self):
         return self._service
@@ -40,6 +43,13 @@ class OperationProcessor:
         for attribute in self.__class__.__dict__.values():
             if isinstance(attribute, OperationParameter):
                 result.append(attribute)
+        return result
+
+    @property
+    def prepared_parameters(self):
+        result = {}
+        for param in self.parameters:
+            result[param.public_name] = param.__get__(self, self.__class__)
         return result
 
     def prepare(self, **parameters):
