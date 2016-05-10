@@ -17,12 +17,12 @@ PyXB is used to parse and validate XML entities. Install it with the following:
 
 mkdir build && \
 cd build && \
-pip download pyxb && \
+pip download pyxb==1.2.4 && \
 tar -zxvf PyXB-1.2.4.tar.gz  && \
 cd PyXB-1.2.4 && \
 export PYXB_ROOT=$(pwd) && \
 maintainer/genbundles @ && \
 pyxb/bundles/opengis/scripts/genbind && \
-pip install . && \
+pip install --upgrade . && \
 cd .. && \
 rm -rf build
