@@ -268,6 +268,7 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
     def get_service_provider(self):
         provider_contact = self.service.server.provider_contact
         provider_site = self.service.server.provider_site
+        contact = provider_contact.contact_info
         return {
             "ProviderName": self.service.server.provider_name,
             "ProviderSite": {
@@ -277,6 +278,16 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
                 "description": provider_site.description,
             },
             "ServiceContact": {
+                "IndividualName": provider_contact.individual_name,
+                "PositionName": provider_contact.position_name,
+                "Role": provider_contact.role,
+                "ContactInfo": {
+                    "Address": {},  # TODO - Add address information
+                    "ContactInstructions": contact.contact_instructions,
+                    "HoursOfService": contact.hours_of_service,
+                    "OnlineResource": contact.online_resource.linkage,
+                    "Phone": contact.phone
+                },
                 "organisationName": provider_contact.organisation_name,
             }
         }

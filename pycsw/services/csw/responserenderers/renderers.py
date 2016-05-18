@@ -35,7 +35,9 @@ class OgcCswXmlRenderer(ResponseRenderer):
                 ProviderName=provider["ProviderName"],
                 ProviderSite=BIND(href=provider["ProviderSite"]["linkage"]),
                 ServiceContact=BIND()  # TODO: Add the remaining elements
-            )
+            ),
+            OperationsMetadata=BIND(),
+            Filter_Capabilities=BIND()
         )
         #rendered = capabilities.toxml(encoding="utf-8")
         #return rendered
