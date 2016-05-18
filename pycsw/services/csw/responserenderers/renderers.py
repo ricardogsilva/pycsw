@@ -9,16 +9,18 @@ class OgcCswXmlRenderer(ResponseRenderer):
 
     def render(self, operation_name, **response):
         func = {
-            "GetCapabilities": self.render_capabilities_pyxb
+            "GetCapabilities": self.render_capabilities,
         }[operation_name]
         response_headers = {
             "Content-Type": self.output_format
         }
         return func(**response), response_headers
 
-    def render_capabilities_pyxb(self, **response):
+    def render_capabilities(self, **response):
         identification = response["ServiceIdentification"]
         provider = response["ServiceProvider"]
+        contact = provider["ServiceContact"]
+        info = contact["ContactInfo"]
         capabilities = csw_2_0_2.Capabilities(
             version=self.service.version,
             updateSequence=response.get("updateSequence"),
@@ -29,19 +31,39 @@ class OgcCswXmlRenderer(ResponseRenderer):
                 ServiceType=self.service.name,
                 ServiceTypeVersion=identification["ServiceTypeVersion"],
                 Fees=identification["Fees"],
-                AccessConstraints=identification["AccessConstraints"],
+                AccessConstraints=[identification["AccessConstraints"]],
             ),
             ServiceProvider=BIND(
                 ProviderName=provider["ProviderName"],
                 ProviderSite=BIND(href=provider["ProviderSite"]["linkage"]),
-                ServiceContact=BIND()  # TODO: Add the remaining elements
+                ServiceContact=BIND(
+                    ContactInfo=BIND(
+                        Address=BIND(
+                            AdministrativeArea=info.get("AdministrativeArea"),
+                            City=info.get("City"),
+                            Country=info.get("Country"),
+                            DeliveryPoint=info.get("DeliveryPoint"),
+                            ElectronicMailAddress=info.get(
+                                "ElectronicMailAddress"),
+                            PostalCode=info.get("PostalCode"),
+                        ),
+                        ContactInstructions=contact.get("ContactInstructions"),
+                        HoursOfService=contact.get("HoursOfService"),
+                        OnlineResource=BIND(
+                            href=contact.get("OnlineResource")),
+                        Phone=contact.get("Phone")
+                    ),
+                    IndividualName=contact.get("IndividualName"),
+                    PositionName=contact.get("PositionName"),
+                    Role=contact.get("Role")
+                )
             ),
             OperationsMetadata=BIND(),
             Filter_Capabilities=BIND()
         )
         #rendered = capabilities.toxml(encoding="utf-8")
         #return rendered
-        return capabilities  # for testign only
+        return capabilities  # for testing only
 
     def can_render(self, operation, request):
         if operation.name == "GetCapabilities":

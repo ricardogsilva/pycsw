@@ -50,7 +50,27 @@ class PycswServer:
         self.provider_name = config.get("name", config_args.get("name", ""))
         # todo: add site and contact details
         self.provider_site = contacts.IsoOnlineResource(linkage="")
-        self.provider_contact = contacts.IsoResponsibleParty()
+        self.provider_contact = contacts.IsoResponsibleParty(
+            individual_name="Dummy individual name",
+            organisation_name="Dummy organisation name",
+            position_name="Dummy position",
+            contact_info=contacts.IsoContact(
+                phone=contacts.IsoTelephone(voice="Dummy telephone"),
+                address=contacts.IsoAddress(
+                    delivery_point="Dummy street address",
+                    city="Dummy city",
+                    administrative_area="dummy admin area",
+                    postal_code="dummy postal code",
+                    country="dummy country",
+                    electronic_mail_address="dummy e-mail"
+                ),
+                online_resource=contacts.IsoOnlineResource(
+                    linkage="dummy link"
+                ),
+                hours_of_service="dummy hours",
+                contact_instructions="dummy instructions"
+            )
+        )
         logger.debug("Initializing server...")
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")

@@ -237,6 +237,8 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
         }
         if "All" in self.sections:
             sections = section_getters.keys()
+        else:
+            sections = self.sections
         for name, getter in section_getters.items():
             allowed = name in self.__class__.sections.allowed_values
             requested = name in sections
@@ -280,13 +282,22 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
             "ServiceContact": {
                 "IndividualName": provider_contact.individual_name,
                 "PositionName": provider_contact.position_name,
-                "Role": provider_contact.role,
+                "Role": provider_contact.role.name,
                 "ContactInfo": {
-                    "Address": {},  # TODO - Add address information
+                    "Address": {
+                        "AdministrativeArea":
+                            contact.address.administrative_area,
+                        "City": contact.address.city,
+                        "Country": contact.address.country,
+                        "DeliveryPoint": contact.address.delivery_point,
+                        "ElectronicMailAddress":
+                            contact.address.electronic_mail_address,
+                        "PostalCode": contact.address.postal_code,
+                    },
                     "ContactInstructions": contact.contact_instructions,
                     "HoursOfService": contact.hours_of_service,
                     "OnlineResource": contact.online_resource.linkage,
-                    "Phone": contact.phone
+                    "Phone": contact.phone.voice
                 },
                 "organisationName": provider_contact.organisation_name,
             }
