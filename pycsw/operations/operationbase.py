@@ -16,6 +16,7 @@ class OperationProcessor:
     """
 
     name = ""
+    url_path = ""  # used for building URLs for the operation
     _service = None
     enabled = True
     allowed_http_verbs = set()

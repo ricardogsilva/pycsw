@@ -41,12 +41,17 @@ class PycswServer:
     provider_name = ""
     provider_site = None
     provider_contact = None
+    site_name = ""  # used for building URLs for the server
+    public_hosts = []  # used for building URLs for the server
 
     _services = None
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
         config = {}
+        self.public_hosts = [
+            "http://localhost:8000/"  # ensure each URL ends with /
+        ]
         self.provider_name = config.get("name", config_args.get("name", ""))
         # todo: add site and contact details
         self.provider_site = contacts.IsoOnlineResource(linkage="")

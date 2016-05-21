@@ -20,6 +20,7 @@ class Service:
     """Base class for all pycsw services."""
 
     title = ""
+    url_path = ""  # used for building URLs for the service
     abstract = ""
     keywords = None
     fees = ""

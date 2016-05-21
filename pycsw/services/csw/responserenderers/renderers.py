@@ -21,6 +21,7 @@ class OgcCswXmlRenderer(ResponseRenderer):
         provider = response["ServiceProvider"]
         contact = provider["ServiceContact"]
         info = contact["ContactInfo"]
+        ops = response["OperationsMetadata"]
         capabilities = csw_2_0_2.Capabilities(
             version=self.service.version,
             updateSequence=response.get("updateSequence"),
@@ -58,8 +59,30 @@ class OgcCswXmlRenderer(ResponseRenderer):
                     Role=contact.get("Role")
                 )
             ),
-            OperationsMetadata=BIND(),
-            Filter_Capabilities=BIND()
+            OperationsMetadata=BIND(
+                Operation=[
+                    BIND(
+                        name=op["name"],
+                        DCP=[BIND()],
+                        Parameter=[
+                            BIND(
+                                name=param[0],
+                                Value=[str(value) for value in param[1]],
+                                Metadata=param[2]
+                            ) for param in op["Parameter"]
+                        ],
+                        Constraint=[
+                            BIND(
+                                name=constraint[0],
+                                Value=[str(value) for value in constraint[1]],
+                                Metadata=constraint[2],
+                            ) for constraint in op["Constraint"]
+                        ],
+                        Metadata=None  # reimplement if needed
+                    ) for op in ops
+                ],
+            ),
+            #Filter_Capabilities=BIND()
         )
         #rendered = capabilities.toxml(encoding="utf-8")
         #return rendered

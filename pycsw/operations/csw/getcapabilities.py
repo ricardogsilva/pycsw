@@ -12,7 +12,22 @@ from ..operationbase import OperationProcessor
 logger = logging.getLogger(__name__)
 
 
+# FIXME - It is kind of lame that section names appear on two different places
 class GetCapabilities202OperationProcessor(OperationProcessor):
+    """GetCapabilities operation processor.
+
+    Parameters
+    ----------
+    Attributes
+    ----------
+    name: str
+        The name of this operation.
+    accept_versions: pycsw.operations.parameters.TextListParameter
+        This parameter is managed by a descriptor class. It represents the
+        versions accepted by pycsw.
+
+    """
+
     name = "GetCapabilities"
 
     accept_versions = parameters.TextListParameter(
@@ -29,7 +44,7 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
             "ServiceProvider",
             "OperationsMetadata",
             "Contents",
-            "FilterCapabilities",
+            "Filter_Capabilities",
         ]
     )
     accept_formats = parameters.TextListParameter(
@@ -233,7 +248,7 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
             "ServiceProvider": self.get_service_provider,
             "OperationsMetadata": self.get_operations_metadata,
             "Contents": self.get_contents,
-            "FilterCapabilities": self.get_filter_capabilities,
+            "Filter_Capabilities": self.get_filter_capabilities,
         }
         if "All" in self.sections:
             sections = section_getters.keys()
@@ -303,17 +318,19 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
             }
         }
 
+    # TODO: Generate URLS for DCP metadata
     def get_operations_metadata(self):
         ops = []
         for op in self.service.operations:
             if op.enabled:
                 op_data = {
                     "name": op.name,
-                    "distributed_computing_platform": None,
-                    "parameters": [(p.public_name, p.allowed_values) for p
-                                   in op.parameters],
-                    "constraints": op.constraints,
-                    "metadatas": [],
+                    "DCP": self.get_urls(),
+                    "Parameter": [(p.public_name, p.allowed_values,
+                                   p.metadata) for p in op.parameters],
+                    "Constraint": [(c.name, c.allowed_values, c.metadata)
+                                   for c in op.constraints],
+                    "Metadata": [],
                 }
                 ops.append(op_data)
         return ops
@@ -323,3 +340,12 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
 
     def get_contents(self):
         pass
+
+    def get_urls(self):
+        urls = []
+        for verb in self.allowed_http_verbs:
+            for host_url in self.service.server.public_hosts:
+                url = "".join((host_url, self.service.server.site_name,
+                               self.service.url_path, self.url_path))
+                urls.append((verb.name, url))
+        return urls
