@@ -87,6 +87,16 @@ class CswService(servicebase.Service):
                          "request.".format(self))
         return schema_processor_to_use
 
+    def get_urls(self):
+        urls = []
+        for host_url in self.server.public_hosts:
+            for op in self.operations:
+                url = "".join((host_url, self.server.site_name, self.url_path))
+                for verb in (HttpVerb.GET, HttpVerb.POST):
+                    if verb in op.allowed_http_verbs:
+                        urls.append((op, verb, url))
+        return urls
+
 
 class CswOgcSchemaProcessor(servicebase.SchemaProcessor):
     type_names = None

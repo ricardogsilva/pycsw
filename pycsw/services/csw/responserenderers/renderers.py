@@ -1,6 +1,8 @@
-from pyxb.bundles.opengis import csw_2_0_2
 from pyxb import BIND
+from pyxb.bundles.opengis import csw_2_0_2
+from pyxb.bundles.opengis import filter
 
+from ....httprequest import HttpVerb
 from ...servicebase import ResponseRenderer
 
 class OgcCswXmlRenderer(ResponseRenderer):
@@ -63,7 +65,14 @@ class OgcCswXmlRenderer(ResponseRenderer):
                 Operation=[
                     BIND(
                         name=op["name"],
-                        DCP=[BIND()],
+                        DCP=[
+                            BIND(HTTP=BIND(
+                                Get=[BIND(href=dcp[1]) for dcp in op["DCP"] if
+                                     dcp[0] == HttpVerb.GET],
+                                Post=[BIND(href=dcp[1]) for dcp in op["DCP"] if
+                                      dcp[0] == HttpVerb.POST],
+                            ))
+                        ],
                         Parameter=[
                             BIND(
                                 name=param[0],
@@ -82,7 +91,7 @@ class OgcCswXmlRenderer(ResponseRenderer):
                     ) for op in ops
                 ],
             ),
-            #Filter_Capabilities=BIND()
+            Filter_Capabilities=BIND()
         )
         #rendered = capabilities.toxml(encoding="utf-8")
         #return rendered

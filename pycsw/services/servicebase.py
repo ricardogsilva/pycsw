@@ -156,6 +156,13 @@ class Service:
         """
         raise NotImplementedError
 
+    def get_urls(self):
+        """Get the URLs for the operations defined in the service.
+
+        """
+
+        raise NotImplementedError
+
 
 class SchemaProcessor:
     """Base class for implementing processors for specific schemas.

@@ -325,7 +325,8 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
             if op.enabled:
                 op_data = {
                     "name": op.name,
-                    "DCP": self.get_urls(),
+                    "DCP": [(url[1], url[2]) for url in
+                            self.service.get_urls() if url[0] == self],
                     "Parameter": [(p.public_name, p.allowed_values,
                                    p.metadata) for p in op.parameters],
                     "Constraint": [(c.name, c.allowed_values, c.metadata)
@@ -340,12 +341,3 @@ class GetCapabilities202OperationProcessor(OperationProcessor):
 
     def get_contents(self):
         pass
-
-    def get_urls(self):
-        urls = []
-        for verb in self.allowed_http_verbs:
-            for host_url in self.service.server.public_hosts:
-                url = "".join((host_url, self.service.server.site_name,
-                               self.service.url_path, self.url_path))
-                urls.append((verb.name, url))
-        return urls
