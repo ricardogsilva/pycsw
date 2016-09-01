@@ -1,7 +1,7 @@
 """Operation parameter classes for pycsw."""
 
-from ..exceptions import CswError
-from ..exceptions import INVALID_PARAMETER_VALUE
+from pycsw.exceptions import CswError
+from pycsw.exceptions import INVALID_PARAMETER_VALUE
 
 
 class OperationParameter:

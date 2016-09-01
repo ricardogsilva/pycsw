@@ -46,8 +46,8 @@ class CswService(servicebase.Service):
                                    else CswDistributedSearch())
         self.repository = repository
 
-    def get_schema_processor(self, request):
-        """Get a suitable schema processor for the request
+    def get_request_parser(self, request):
+        """Get a suitable request_parser for the request
 
         Parameters
         ----------
@@ -56,16 +56,16 @@ class CswService(servicebase.Service):
 
         Returns
         -------
-        pycsw.services.servicebase.SchemaProcessor or None
-            The schema_processor object that is able to process the request.
+        pycsw.services.servicebase.RequestParser or None
+            The request_parser object that is able to process the request.
 
         """
 
-        schema_processor_to_use = None
-        for processor in self.schema_processors:
-            logger.debug("Evaluating {}...".format(processor))
+        parser_to_use = None
+        for parser in self.request_parsers:
+            logger.debug("Evaluating {}...".format(parser))
             try:
-                info = processor.parse_general_request_info(request)
+                info = parser.parse_general_request_info(request)
                 logger.debug("requested_info: {}".format(info))
                 service_ok = info["service"] == self.name
                 version_ok = info["version"] == self.version
@@ -74,18 +74,17 @@ class CswService(servicebase.Service):
                 logger.debug("version_ok: {}".format(version_ok))
                 logger.debug("is_default: {}".format(is_default))
                 if service_ok and version_ok:
-                    schema_processor_to_use = processor
+                    parser_to_use = parser
                     break
                 elif service_ok and info["version"] is None and is_default:
-                    schema_processor_to_use = processor
+                    parser_to_use = parser
                     break
             except exceptions.PycswError:
-                logger.debug("SchemaProcessor {} cannot accept "
-                             "request".format(processor))
+                logger.debug("{0} cannot accept request".format(parser))
         else:
             logger.debug("Service {0.identifier} cannot accept "
                          "request.".format(self))
-        return schema_processor_to_use
+        return parser_to_use
 
     def get_urls(self):
         urls = []
@@ -98,7 +97,7 @@ class CswService(servicebase.Service):
         return urls
 
 
-class CswOgcSchemaProcessor(servicebase.SchemaProcessor):
+class CswOgcSchemaProcessor(servicebase.RequestParser):
     type_names = None
     record_mapping = None
     element_set_names = None
@@ -123,7 +122,7 @@ class CswOgcKvpProcessor(CswOgcSchemaProcessor):
                 "version": request.parameters.get("version"),
             }
         except KeyError:
-            raise exceptions.PycswError("Processor {} unable to parse "
+            raise exceptions.PycswError("{0} unable to parse "
                                         "general request info".format(self))
         else:
             return info

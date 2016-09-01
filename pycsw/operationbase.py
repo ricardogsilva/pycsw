@@ -1,6 +1,6 @@
 import logging
 
-from .parameters import OperationParameter
+from pycsw.parameters import OperationParameter
 
 logger = logging.getLogger(__name__)
 

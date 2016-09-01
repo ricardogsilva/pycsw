@@ -1,0 +1,8 @@
+--requirement base.txt
+
+coverage==4.0.3
+pytest==2.9.1
+pytest-cov==2.2.1
+pytest-flake8==0.2
+pytest-html==1.8.0
+pytest-catchlog==1.2.2

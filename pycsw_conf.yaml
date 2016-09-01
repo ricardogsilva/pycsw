@@ -1,0 +1,72 @@
+server:
+    endpoint: http://localhost:8000
+    language: en-US
+    encoding: utf-8
+    logging:
+        level: debug
+        log_file:
+
+provider:
+    name: XPTO
+    url: http://xpto.com
+    contact:
+        name: John Doe
+        role: pointofcontact
+        position: engineer
+        address: 
+        city: Lisboa
+        state_or_province: Lisboa
+        postal_code: 1500
+        country: Portugal
+        phone: +351222222222
+        fax:
+        email: john.doe@xpto.com
+        url:
+        hours: office hours, on weekdays
+        instructions: email on office hours
+
+services:
+    csw:
+        # Every service has the following parameters:
+        title: Catalog service for the XPTO library
+        abstract: This service has records for the products made by XPTO
+        keywords:
+            - xpto
+            - csw
+            - product
+        keywords_type:
+        fees: none
+        access_constraints: none
+        2.0.2:
+            # each version of the service has these specific parameters
+            operations:
+                getcapabilities: 
+                    # operations have at least "enabled" and "class" parameters
+                    enabled: true
+                    class: pycsw.services.csw.operations.getcapabilities.GetCapabilities
+                getrecords: 
+                    enabled: true
+                    class: pycsw.services.csw.operations.getrecords.GetRecords
+                    max_records: 10
+            request_parsers:
+                - pycsw.services.csw.cswbase.CswOgcKvpProcessor
+                - pycsw.services.csw.cswbase.CswOgcPostProcessor
+            response_renderers:
+                - pycsw.services.csw.responserenderers.renderer.OgcCswXmlRenderer
+            # and may have additional parameters, depending on the type of service
+            repository:
+            federated_catalogues:
+            enable_transactions: false
+            harvesting:
+                enabled: false
+                page_size: 10
+        3.0.0:
+    wps:
+        1.0.0:
+            operations:
+            request_parsers:
+            response_renderers:
+    oseo:
+        1.0.0:
+    sos:
+        1.0.0:

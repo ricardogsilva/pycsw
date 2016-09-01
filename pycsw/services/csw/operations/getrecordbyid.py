@@ -1,7 +1,7 @@
 import logging
 
-from .. import parameters
-from ..operationbase import OperationProcessor
+from pycsw import parameters
+from pycsw.operationbase import OperationProcessor
 
 logger = logging.getLogger(__name__)
 

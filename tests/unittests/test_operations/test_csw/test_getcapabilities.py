@@ -1,9 +1,8 @@
 """Unit tests for pycsw.operations.csw.getcapabilities"""
 
 import pytest
-
-from pycsw.operations.csw import getcapabilities
 from pycsw.httprequest import HttpVerb
+from pycsw.services.csw.operations import getcapabilities
 
 
 @pytest.mark.unit

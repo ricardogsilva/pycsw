@@ -29,7 +29,7 @@ def application(request):
     logger.debug("request parameters: {}".format(pycsw_request.parameters))
     pycsw_server = server.PycswServer()
     try:
-        schema_processor = pycsw_server.get_schema_processor(pycsw_request)
+        schema_processor = pycsw_server.get_request_parser(pycsw_request)
         logger.debug("selected schema_processor: {}".format(schema_processor))
         operation, parameters = schema_processor.parse_request(pycsw_request)
         logger.debug("Parsed request. Operation: {} - "

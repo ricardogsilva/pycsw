@@ -29,7 +29,7 @@ class TestPycswServer:
         request = httprequest.PycswHttpRequest(method=httprequest.HttpVerb.GET,
                                                parameters=params,
                                                content_type="")
-        schema_processor = s.get_schema_processor(request)
+        schema_processor = s.get_request_parser(request)
         assert isinstance(schema_processor, cswbase.CswOgcSchemaProcessor)
 
     def test_get_schema_processor_csw_post_get_capabilities(self):
@@ -44,7 +44,7 @@ class TestPycswServer:
         request = httprequest.PycswHttpRequest(
             method=httprequest.HttpVerb.POST, body=body.encode())
         s = server.PycswServer()
-        schema_processor = s.get_schema_processor(request)
+        schema_processor = s.get_request_parser(request)
         assert isinstance(schema_processor,
                           cswbase.CswOgcPostProcessor)
 
@@ -57,7 +57,7 @@ class TestPycswServer:
         request = httprequest.PycswHttpRequest(method=httprequest.HttpVerb.GET,
                                                parameters=params,
                                                content_type="")
-        schema_processor = s.get_schema_processor(request)
+        schema_processor = s.get_request_parser(request)
         operation, parameters = schema_processor.parse_request(request)
         operation.prepare(**parameters)
         renderer = schema_processor.service.get_renderer(operation)

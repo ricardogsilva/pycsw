@@ -1,12 +1,12 @@
 """Pycsw server class.
 
->>> server = PycswServer(config)
+>>> server = PycswServer()
 >>> # request is a PycswHttpRequest that was created from the werkzeug request
 >>> try:
->>>     schema_processor = server.get_schema_processor(request)
->>>     operation, parameters = schema_processor.parse_request(request)
+>>>     parser = server.get_request_parser(request)
+>>>     operation, parameters = parser.parse_request(request)
 >>>     operation.prepare(**parameters)
->>>     service = schema_processor.service
+>>>     service = parser.service
 >>>     response_renderer = service.get_renderer(operation, request)
 >>>     response, status_code = operation()
 >>>     rendered, headers = response_renderer.render(element=operation.name,
@@ -19,6 +19,9 @@
 """
 
 import logging
+import os
+
+import yaml
 
 from . import contacts
 from . import exceptions
@@ -28,9 +31,10 @@ from .repositories.sla.repository import CswSlaRepository
 from .services.csw import csw202
 from .services.csw import cswbase
 from .services.csw.responserenderers import renderers
-from .operations.csw.getcapabilities import (
+from .services.csw.operations.getcapabilities import (
     GetCapabilities202OperationProcessor)
-from .operations.csw.getrecordbyid import GetRecordById202Operation
+from .services.csw.operations.getrecordbyid import (
+    GetRecordById202Operation)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ class PycswServer:
 
     def __init__(self, config_path=None, **config_args):
         # load common config for all services.
-        config = {}
+        config = self.load_config(config_path=config_path, **config_args)
         self.public_hosts = [
             "http://localhost:8000/"  # ensure each URL ends with /
         ]
@@ -105,8 +109,8 @@ class PycswServer:
         latest_csw = None
         for service in (s for s in self.services if s.name == "CSW"):
             try:
-                 latest_csw = sorted((service.version, latest_csw),
-                                     reverse=True)[0]
+                latest_csw = sorted((service.version, latest_csw),
+                                    reverse=True)[0]
             except TypeError:  # latest_csw is None
                 latest_csw = service
         return latest_csw
@@ -193,8 +197,8 @@ class PycswServer:
             distributed_search=cswbase.CswDistributedSearch(),
             repository=repository,
         )
-        csw202_service.schema_processors.append(post_processor)
-        csw202_service.schema_processors.append(kvp_processor)
+        csw202_service.request_parsers.append(post_processor)
+        csw202_service.request_parsers.append(kvp_processor)
         csw202_service.operations.append(get_capabilities)
         csw202_service.operations.append(get_record_by_id)
 
@@ -222,7 +226,7 @@ class PycswServer:
             logger.debug("Server does not feature "
                          "service {}v{}".format(name, version))
 
-    def get_schema_processor(self, request):
+    def get_request_parser(self, request):
         """Get the appropriate schema_processor to process the incoming request.
 
         This method selects the schema_processor that is suitable for
@@ -247,12 +251,12 @@ class PycswServer:
         """
         for service in self.services:
             logger.debug("Evaluating {0.identifier}...".format(service))
-            schema_processor = service.get_schema_processor(request)
-            if schema_processor is not None:
+            parser = service.get_request_parser(request)
+            if parser is not None:
                 # stop on the first suitable service
                 logger.info("{} can handle the request".format(
-                    schema_processor))
-                return schema_processor
+                    parser))
+                return parser
         else:
             raise exceptions.PycswError("Could not find a suitable schema "
                                         "processor in any of the available "
@@ -279,7 +283,7 @@ class PycswServer:
                 allowed_values = {
                     "accept_versions": csw_versions,
                     "accept_formats": [p.media_type for p in
-                                       service.schema_processors if
+                                       service.request_parsers if
                                        p.media_type],
                 }
                 defaults = {
@@ -289,4 +293,74 @@ class PycswServer:
                 }
                 op.update_parameter_allowed_values(**allowed_values)
                 op.update_parameter_defaults(**defaults)
+
+    @classmethod
+    def load_config(cls, config_path=None, **config_keys):
+        """Load server configuration.
+
+        Configuration may be loaded using several methods:
+
+        * By passing the path to a configuration file to be read. The
+          configuration file must be valid yaml. It is also possible to
+          specify the config file's path with the
+          ``PYCSW_CONFIG_PATH`` environment variable instead;
+
+        * By using environment variables. In this case, every variable must
+          be defined as PYCSW_SECTION__VARIABLE=value (note the usage of
+          double underscore to separate sections from variable names). This
+          method of specifying configuration values takes precedence over
+          configuration files;
+
+        * By passing individual name=value pairs. The variable name is
+          defined in the same way as when passing environment variables:
+          PYCSW_SECTION__SUB_SECTION__VARIABLE;
+
+        Section and variable names are case insensitive. Variable values are
+        case sensitive though.
+
+        Parameters
+        ----------
+        config_path: str, optional
+            Full path to the YAML file where settings are specified.
+
+        Returns
+        -------
+        dict
+            The parsed configuration settings
+
+        """
+
+        config = cls._load_config_from_path(config_path)
+        cls._update_config_from_environment(config)
+        cls._update_config_from_kwargs(config, **config_keys)
+        return config
+
+    @classmethod
+    def _load_config_from_path(cls, config_path=None):
+        config = {}
+        path = config_path or os.environ.get("PYCSW_CONFIG_PATH")
+        if path is not None:
+            with open(path) as fh:
+                config.update(yaml.safe_load(fh))
+        return config
+
+    @classmethod
+    def _update_config_from_environment(cls, config):
+        env_kwargs = {k: v for k, v in os.environ.items() if
+                      k.lower().startswith("pycsw_")}
+        cls._update_config_from_kwargs(config, **env_kwargs)
+
+    @classmethod
+    def _update_config_from_kwargs(cls, config, **kwargs):
+        operate_on = config
+        for key, value in ((k, v) for k, v in kwargs.items() if
+                           k.lower().startswith("pycsw_")):
+            sections = key.lower().replace("pycsw_", "").split("__")
+            variable = sections.pop()
+            for section in sections:
+                if operate_on.get(section) is None:
+                    operate_on[section] = {}
+                operate_on = operate_on[section]
+            operate_on[variable] = value
+            operate_on = config
 

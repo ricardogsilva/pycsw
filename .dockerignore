@@ -1,0 +1,15 @@
+build
+.git
+dist
+docs/_build
+*.pyc
+*.egg-info
+
+tests/index.html
+tests/results
+tests/report.html
+tests/.coverage
+
+.idea
+
+.cache

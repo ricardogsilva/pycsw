@@ -2,8 +2,8 @@
 
 A service has:
 
-* SchemaProcessors, which are used to parse the request
-* Operations, which take care of actaully processing the request
+* RequestParsers, which are used to parse the request
+* Operations, which take care of actually processing the request
 * ResponseRenderers, that generate the output format requested by the client
 
 """
@@ -32,7 +32,7 @@ class Service:
     _server = None
     _operations = None
 
-    _schema_processors = None
+    _request_parsers = None
     _response_renderers = None
 
 
@@ -45,7 +45,7 @@ class Service:
         self.access_constraints = access_constraints
         self.namespaces = dict(namespaces) if namespaces is not None else {}
         self._server = None
-        self._schema_processors = utilities.ManagedList(
+        self._request_parsers = utilities.ManagedList(
             manager=self, related_name="_service")
         self._response_renderers = utilities.ManagedList(
             manager=self, related_name="_service")
@@ -56,7 +56,7 @@ class Service:
         return ("{0.__class__.__name__}(name={0.name!r}, "
                 "version={0.version!r}, "
                 "operations={0.operations!r}, "
-                "schema_processors={0.schema_processors!r})".format(self))
+                "request_parsers={0.request_parsers!r})".format(self))
 
     def __str__(self):
         return "{0.__class__.__name__}({0.identifier})".format(self)
@@ -79,9 +79,9 @@ class Service:
         return self._server
 
     @property
-    def schema_processors(self):
-        """Return the available SchemaProcessor objects."""
-        return self._schema_processors
+    def request_parsers(self):
+        """Return the available RequestParser objects."""
+        return self._request_parsers
 
     @property
     def response_renderers(self):
@@ -125,8 +125,8 @@ class Service:
                                         "enabled".format(name))
         return result
 
-    def get_schema_processor(self, request):
-        """Get a suitable schema processor for the request
+    def get_request_parser(self, request):
+        """Get a suitable RequestParser object for the request
 
         Reimplement this method in child classes.
 
@@ -137,8 +137,8 @@ class Service:
 
         Returns
         -------
-        pycsw.services.csw.cswbase.OgcSchemaProcessor
-            The schema processor object that can process the request.
+        RequestParser
+            The request_parser object that can process the request.
 
         """
 
@@ -164,22 +164,23 @@ class Service:
         raise NotImplementedError
 
 
-class SchemaProcessor:
-    """Base class for implementing processors for specific schemas.
+class RequestParser:
+    """Base class for implementing parsers for specific schemas.
 
-    This class serves a base for implementing processors for the various
-    schemas that each service might accept. A SchemaProcessor is responsible
+    This class serves a base for implementing parsers for the various
+    schemas that each service might accept. A RequestParser is responsible
     for:
 
     * Parsing the incoming PycswHttpRequest object and extract general
-      information from it. This allows the schema processor's parent, which is
-      the generic request_processor, to decide which of its schema processors
+      information from it. This allows the parser's parent, which is
+      the underlying service, to decide which of its RequestParsers
       is able to process an input request
     * Parsing the incoming request and extract the relevant parameters for
-      the requested operation. This means that each schema_parser must now
+      the requested operation. This means that each reuqest_parser must know
       which operations it is able to parse
 
     """
+
     _service = None
     namespaces = {}
     media_type = ""
@@ -202,6 +203,7 @@ class SchemaProcessor:
         from it.
 
         """
+
         raise NotImplementedError
 
     def parse_request(self, request):
