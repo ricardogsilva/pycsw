@@ -1,5 +1,5 @@
 server:
-    endpoint: http://localhost:8000
+    endpoint: http://xpto.com
     language: en-US
     encoding: utf-8
     logging:
@@ -37,8 +37,15 @@ services:
         keywords_type:
         fees: none
         access_constraints: none
-        2.0.2:
-            # each version of the service has these specific parameters
+        version_2.0.2:
+            # each version of the service must have these parameters:
+            # - enabled
+            # - class
+            # - operations
+            # - request_parsers
+            # - response_renderers
+            enabled: true
+            class: pycsw.services.csw.csw202.Csw202Service
             operations:
                 getcapabilities: 
                     # operations have at least "enabled" and "class" parameters
@@ -60,13 +67,14 @@ services:
             harvesting:
                 enabled: false
                 page_size: 10
-        3.0.0:
+        version_3.0.0:
     wps:
-        1.0.0:
+        version_1.0.0:
+            enabled: false
             operations:
             request_parsers:
             response_renderers:
     oseo:
-        1.0.0:
+        version_1.0.0:
     sos:
-        1.0.0:
+        version_1.0.0:

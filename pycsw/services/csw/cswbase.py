@@ -37,10 +37,10 @@ class CswService(servicebase.Service):
     repository = None
 
     def __init__(self, title="", abstract="", keywords=None, fees="",
-                 access_constraints="", namespaces=None, repository=None,
+                 access_constraints="", repository=None,
                  distributed_search=None):
         super().__init__(title=title, abstract=abstract, keywords=keywords,
-                         fees=fees, namespaces=namespaces)
+                         fees=fees)
         self.distributed_search = (distributed_search if
                                    distributed_search is not None
                                    else CswDistributedSearch())

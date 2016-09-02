@@ -13,3 +13,5 @@ tests/.coverage
 .idea
 
 .cache
+
+.tox

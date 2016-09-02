@@ -40,54 +40,34 @@ logger = logging.getLogger(__name__)
 
 
 class PycswServer:
-    """Processes incoming HTTTP requests."""
+    """Processes incoming HTTP requests."""
 
     provider_name = ""
     provider_site = None
     provider_contact = None
     site_name = ""  # used for building URLs for the server
-    public_hosts = []  # used for building URLs for the server
+    public_host = ""  # used for building URLs for the server
 
     _services = None
 
     def __init__(self, config_path=None, **config_args):
-        # load common config for all services.
+        logger.info("Initializing server...")
         config = self.load_config(config_path=config_path, **config_args)
-        self.public_hosts = [
-            "http://localhost:8000/"  # ensure each URL ends with /
-        ]
-        self.provider_name = config.get("name", config_args.get("name", ""))
-        # todo: add site and contact details
-        self.provider_site = contacts.IsoOnlineResource(linkage="")
-        self.provider_contact = contacts.IsoResponsibleParty(
-            individual_name="Dummy individual name",
-            organisation_name="Dummy organisation name",
-            position_name="Dummy position",
-            contact_info=contacts.IsoContact(
-                phone=contacts.IsoTelephone(voice="Dummy telephone"),
-                address=contacts.IsoAddress(
-                    delivery_point="Dummy street address",
-                    city="Dummy city",
-                    administrative_area="dummy admin area",
-                    postal_code="dummy postal code",
-                    country="dummy country",
-                    electronic_mail_address="dummy e-mail"
-                ),
-                online_resource=contacts.IsoOnlineResource(
-                    linkage="dummy link"
-                ),
-                hours_of_service="dummy hours",
-                contact_instructions="dummy instructions"
-            )
-        )
-        logger.debug("Initializing server...")
+        self.public_host = config.get(
+            "server", {}).get("endpoint", "http://localhost:8000/")
+        self.provider_name = config.get("provider", {}).get(
+            "name", "Placeholder name")
+        self.provider_site = contacts.IsoOnlineResource(
+            linkage=config.get("provider", {}).get("url", ""))
+        self.provider_contact = contacts.IsoResponsibleParty.from_config(config)
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")
-        csw202_repository = self.setup_csw202_repository()
-        csw202_service = self.setup_csw202_service(
-            repository=csw202_repository)
-        self.services.append(csw202_service)
-        self.finish_loading_csw_services()
+        self._load_services(config)
+        #csw202_repository = self.setup_csw202_repository()
+        #csw202_service = self.setup_csw202_service(
+        #    repository=csw202_repository)
+        #self.services.append(csw202_service)
+        #self.finish_loading_csw_services()
 
     def __repr__(self):
         return ("{0.__class__.__name__}(services={0.services!r}, "
@@ -227,9 +207,9 @@ class PycswServer:
                          "service {}v{}".format(name, version))
 
     def get_request_parser(self, request):
-        """Get the appropriate schema_processor to process the incoming request.
+        """Get the appropriate RequestParser to process the incoming request.
 
-        This method selects the schema_processor that is suitable for
+        This method selects the RequestParser that is suitable for
         processing the request among the list of currently enabled services.
 
         Parameters
@@ -294,6 +274,25 @@ class PycswServer:
                 op.update_parameter_allowed_values(**allowed_values)
                 op.update_parameter_defaults(**defaults)
 
+    def _load_services(self, config):
+        for service_name, service_params in config.get("services", {}).items():
+            for version_name in [p for p in service_params if
+                                 p.startswith("version_")]:
+                version_params = config["services"][
+                                     service_name][version_name] or {}
+                if version_params.get("enabled", False):
+                    version_tag = version_name.replace("version_", "")
+                    logger.debug("Loading service {0} {1}...".format(
+                        service_name, version_tag))
+                    module_path, class_ = version_params["class"].rpartition(
+                        ".")[::2]
+                    LoadedClass = utilities.lazy_import_dependency(
+                        module_path, class_)
+                    service = LoadedClass.from_config(service_params,
+                                                      version_params)
+                    self._services.append(service)
+
+
     @classmethod
     def load_config(cls, config_path=None, **config_keys):
         """Load server configuration.
@@ -340,6 +339,7 @@ class PycswServer:
         config = {}
         path = config_path or os.environ.get("PYCSW_CONFIG_PATH")
         if path is not None:
+            logger.debug("Loading configuration from {0!r}...".format(path))
             with open(path) as fh:
                 config.update(yaml.safe_load(fh))
         return config
@@ -347,7 +347,10 @@ class PycswServer:
     @classmethod
     def _update_config_from_environment(cls, config):
         env_kwargs = {k: v for k, v in os.environ.items() if
-                      k.lower().startswith("pycsw_")}
+                      k.lower().startswith("pycsw_") and
+                      k.lower() != "pycsw_config_path"}
+        if len(env_kwargs) > 0:
+            logger.debug("Updating configuration from environment variables...")
         cls._update_config_from_kwargs(config, **env_kwargs)
 
     @classmethod

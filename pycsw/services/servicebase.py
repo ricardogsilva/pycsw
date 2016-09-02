@@ -27,23 +27,24 @@ class Service:
     access_constraints = ""
     namespaces = {}
 
-    _name = ""
-    _version = ""
-    _server = None
-    _operations = None
+    _name = ""  # Must be set by each subclass
+    _version = ""  # Must be set by each subclass
 
+    _server = None  # Is set by the server
+
+    _operations = None
     _request_parsers = None
     _response_renderers = None
 
 
     def __init__(self, title="", abstract="", keywords=None, fees="",
-                 access_constraints="", namespaces=None):
+                 access_constraints=""):
         self.title = title
         self.abstract = abstract
         self.keywords = list(keywords) if keywords is not None else []
         self.fees = fees
         self.access_constraints = access_constraints
-        self.namespaces = dict(namespaces) if namespaces is not None else {}
+        self.namespaces =  {}
         self._server = None
         self._request_parsers = utilities.ManagedList(
             manager=self, related_name="_service")
@@ -106,6 +107,16 @@ class Service:
             else:  # could not get a default media type
                 result = None
         return result
+
+    @classmethod
+    def from_config(cls, service_config, version_config):
+        return cls(
+            title=service_config.get("title", ""),
+            abstract=service_config.get("abstract",""),
+            keywords=service_config.get("keywords"),
+            fees=service_config.get("fees", ""),
+            access_constraints=service_config.get("access_constraints", ""),
+        )
 
 
     def get_enabled_operation(self, name):

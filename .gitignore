@@ -23,3 +23,6 @@ data
 
 # pytest artifacts
 .cache
+
+# tox artifacts
+.tox

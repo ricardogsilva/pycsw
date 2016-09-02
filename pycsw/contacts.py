@@ -85,6 +85,41 @@ class IsoResponsibleParty:
         self.contact_info = (contact_info if contact_info is not None
                              else IsoContact())
 
+    @classmethod
+    def from_config(cls, config):
+        contact_config = config.get("provider", {}).get("contact", {})
+        return cls(
+            role=contact_config.get("role", "pointofcontact"),  # use CiRoleCode enum
+            individual_name=contact_config.get("name", "Placeholder name"),
+            organisation_name=config.get(
+                "provider", {}).get("name", "Placeholder name"),
+            position_name=contact_config.get("position", "Dummy position"),
+            contact_info=IsoContact(
+                phone=IsoTelephone(
+                    voice=contact_config.get("phone", "Dummy telephone"),
+                    facsimile=contact_config.get("fax", ""),
+                ),
+                address=IsoAddress(
+                    delivery_point=contact_config.get("address",
+                                              "Dummy street address"),
+                    city=contact_config.get("city", "Dummy city"),
+                    administrative_area=contact_config.get("state_or_province",
+                                                           "dummy admin area"),
+                    postal_code=contact_config.get("postal_code",
+                                                   "dummy postal code"),
+                    country=contact_config.get("country", "dummy country"),
+                    electronic_mail_address=contact_config.get("email",
+                                                               "dummy e-mail")
+                ),
+                online_resource=IsoOnlineResource(
+                    linkage=contact_config.get("url", "dummy link")
+                ),
+                hours_of_service=contact_config.get("hours", "dummy hours"),
+                contact_instructions=contact_config.get("instructions",
+                                                        "dummy instructions")
+            )
+        )
+
 
 class IsoTelephone:
     """Provides telephone information.
