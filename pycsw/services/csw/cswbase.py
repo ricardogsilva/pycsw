@@ -36,55 +36,12 @@ class CswService(servicebase.Service):
     distributed_search = None
     repository = None
 
-    def __init__(self, title="", abstract="", keywords=None, fees="",
-                 access_constraints="", repository=None,
-                 distributed_search=None):
-        super().__init__(title=title, abstract=abstract, keywords=keywords,
-                         fees=fees)
+    def __init__(self, repository=None, distributed_search=None, **kwargs):
+        super().__init__(**kwargs)
         self.distributed_search = (distributed_search if
                                    distributed_search is not None
                                    else CswDistributedSearch())
         self.repository = repository
-
-    def get_request_parser(self, request):
-        """Get a suitable request_parser for the request
-
-        Parameters
-        ----------
-        request: pycsw.httprequest.PycswHttpRequest
-            The incoming request object.
-
-        Returns
-        -------
-        pycsw.services.servicebase.RequestParser or None
-            The request_parser object that is able to process the request.
-
-        """
-
-        parser_to_use = None
-        for parser in self.request_parsers:
-            logger.debug("Evaluating {}...".format(parser))
-            try:
-                info = parser.parse_general_request_info(request)
-                logger.debug("requested_info: {}".format(info))
-                service_ok = info["service"] == self.name
-                version_ok = info["version"] == self.version
-                is_default = self.server.default_csw_service is self
-                logger.debug("service_ok: {}".format(service_ok))
-                logger.debug("version_ok: {}".format(version_ok))
-                logger.debug("is_default: {}".format(is_default))
-                if service_ok and version_ok:
-                    parser_to_use = parser
-                    break
-                elif service_ok and info["version"] is None and is_default:
-                    parser_to_use = parser
-                    break
-            except exceptions.PycswError:
-                logger.debug("{0} cannot accept request".format(parser))
-        else:
-            logger.debug("Service {0.identifier} cannot accept "
-                         "request.".format(self))
-        return parser_to_use
 
     def get_urls(self):
         urls = []

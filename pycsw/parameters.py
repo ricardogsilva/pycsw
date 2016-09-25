@@ -1,4 +1,13 @@
-"""Operation parameter classes for pycsw."""
+"""Operation parameter classes for pycsw.
+
+Parameters and constraints
+---------------------------
+
+* Parameter - Parameter valid domain that applies to one (or more)
+  operations, as implemented by the server;
+
+Constraint - Constraint on valid domain of a non-parameter quantity
+"""
 
 from pycsw.exceptions import CswError
 from pycsw.exceptions import INVALID_PARAMETER_VALUE

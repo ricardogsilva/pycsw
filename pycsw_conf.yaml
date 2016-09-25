@@ -44,37 +44,60 @@ services:
             # - operations
             # - request_parsers
             # - response_renderers
+            # additionally, a version may have the 'default' parameter,
+            # indicating that it is the default version for that type of
+            # service
             enabled: true
+            default: true
             class: pycsw.services.csw.csw202.Csw202Service
             operations:
-                getcapabilities: 
-                    # operations have at least "enabled" and "class" parameters
-                    enabled: true
-                    class: pycsw.services.csw.operations.getcapabilities.GetCapabilities
-                getrecords: 
-                    enabled: true
-                    class: pycsw.services.csw.operations.getrecords.GetRecords
-                    max_records: 10
+                # each operation must have at least "class" and enabled parameters
+                # but it can define additional constraints
+                getcapabilities:
+                     class: pycsw.services.csw.operations.getcapabilities.GetCapabilities
+                     enabled: true
+                getrecords:
+                     class: pycsw.services.csw.operations.getrecords.GetRecords
+                     enabled: true
+                     max_records: 10
+                #- class: pycsw.services.csw.operations.describerecord
+                #- class: pycsw.services.csw.operations.getdomain
+                #- class: pycsw.services.csw.operations.getrecordbyid
+                #- class: pycsw.services.csw.operations.transaction
+                #- class: pycsw.services.csw.operations.harvest
+                #  page_size: 10
             request_parsers:
                 - pycsw.services.csw.cswbase.CswOgcKvpProcessor
                 - pycsw.services.csw.cswbase.CswOgcPostProcessor
             response_renderers:
                 - pycsw.services.csw.responserenderers.renderer.OgcCswXmlRenderer
-            # and may have additional parameters, depending on the type of service
-            repository:
+            # and may have additional constraints, depending on the type of
+            # service
             federated_catalogues:
-            enable_transactions: false
-            harvesting:
-                enabled: false
-                page_size: 10
+                enabled: true
+                catalogues:
+                    - this
+                    - that
+            repository:
+
         version_3.0.0:
+            enabled: false
+            class:
+
     wps:
         version_1.0.0:
             enabled: false
+            class:
             operations:
             request_parsers:
             response_renderers:
     oseo:
         version_1.0.0:
+            enabled: false
+            class:
+
     sos:
         version_1.0.0:
+            enabled: false
+            class:
+

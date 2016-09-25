@@ -62,7 +62,7 @@ class PycswServer:
         self.provider_contact = contacts.IsoResponsibleParty.from_config(config)
         self._services = utilities.ManagedList(manager=self,
                                                related_name="_server")
-        self._load_services(config)
+        self.load_services(config)
         #csw202_repository = self.setup_csw202_repository()
         #csw202_service = self.setup_csw202_service(
         #    repository=csw202_repository)
@@ -70,31 +70,13 @@ class PycswServer:
         #self.finish_loading_csw_services()
 
     def __repr__(self):
-        return ("{0.__class__.__name__}(services={0.services!r}, "
-                "default_csw_service={0.default_csw_service!r})".format(self))
+        return ("{0.__class__.__name__}(services={0.services!r})".format(self))
 
     @property
     def services(self):
         return self._services
 
-    @property
-    def default_csw_service(self):
-        """Return the service that responds to CSW requests with no version.
-
-        Since the GetCapabilities request does not mandate the presence of the
-        'version' parameter, there must be a default CSW service. The service
-        that handles CSW with the latest version among the currently enabled
-        services is returned.
-        """
-        latest_csw = None
-        for service in (s for s in self.services if s.name == "CSW"):
-            try:
-                latest_csw = sorted((service.version, latest_csw),
-                                    reverse=True)[0]
-            except TypeError:  # latest_csw is None
-                latest_csw = service
-        return latest_csw
-
+    # DEPRECATED
     @classmethod
     def setup_csw202_service(cls, repository=None):
         """Create the CSW version 2.0.2 service."""
@@ -188,6 +170,7 @@ class PycswServer:
         logger.debug("Initialized csw202 service")
         return csw202_service
 
+    # DEPRECATED
     def setup_csw202_repository(self, engine_url=None, echo=False,
                                 query_translator_modules=None):
         repository = CswSlaRepository(
@@ -199,9 +182,10 @@ class PycswServer:
 
     def get_service(self, name, version):
         """Return the service with the specified name and version."""
-        for s in self.services:
-            if s.name == name and s.version == version:
-                return s
+        for service in self.services:
+            if (service.name.lower() == name.lower() and
+                    service.version == version):
+                return service
         else:
             logger.debug("Server does not feature "
                          "service {}v{}".format(name, version))
@@ -230,7 +214,8 @@ class PycswServer:
 
         """
         for service in self.services:
-            logger.debug("Evaluating {0.identifier}...".format(service))
+            logger.debug("Evaluating service {0.identifier}...".format(
+                service))
             parser = service.get_request_parser(request)
             if parser is not None:
                 # stop on the first suitable service
@@ -238,10 +223,11 @@ class PycswServer:
                     parser))
                 return parser
         else:
-            raise exceptions.PycswError("Could not find a suitable schema "
-                                        "processor in any of the available "
-                                        "services.")
+            raise exceptions.PycswError("Could not find a suitable "
+                                        "RequestParser in any of the "
+                                        "available services.")
 
+    # FIXME: DEPRECATED
     def finish_loading_csw_services(self):
         """Update metadata on CSW services after the have been loaded.
 
@@ -274,24 +260,53 @@ class PycswServer:
                 op.update_parameter_allowed_values(**allowed_values)
                 op.update_parameter_defaults(**defaults)
 
-    def _load_services(self, config):
+    def load_services(self, config):
+        """Load the services specified in the input config."""
+        # TODO: must load some sensible defaults in case config is empty
         for service_name, service_params in config.get("services", {}).items():
-            for version_name in [p for p in service_params if
-                                 p.startswith("version_")]:
-                version_params = config["services"][
-                                     service_name][version_name] or {}
+            for version_name in [param for param in service_params if
+                                 param.startswith("version_")]:
+                version_params = service_params[version_name]
                 if version_params.get("enabled", False):
-                    version_tag = version_name.replace("version_", "")
                     logger.debug("Loading service {0} {1}...".format(
-                        service_name, version_tag))
+                        service_name, version_name))
                     module_path, class_ = version_params["class"].rpartition(
                         ".")[::2]
                     LoadedClass = utilities.lazy_import_dependency(
                         module_path, class_)
-                    service = LoadedClass.from_config(service_params,
-                                                      version_params)
+                    service = LoadedClass.from_config(config)
                     self._services.append(service)
 
+    def get_default_service(self, service_name):
+        """Return the service that responds to requests with no version.
+
+        Since the GetCapabilities request does not mandate the presence of the
+        'version' parameter, there must be a default service for each
+        servie class. The default service is found in one of two ways:
+
+        * The first service instance that has the 'default' attribute set to
+          a truthy value, it becomes the default;
+        * If none of the currently configured services has the 'default'
+          attribute set to a truthy value, a sorting is performed and the
+          latest version is considered the new default. By latest we mean the
+          one that is sorted first in descending order when sorted
+          alphabetically.
+
+        """
+
+        default_service = None
+        for service in (s for s in self.services if
+                        s.name.lower() == service_name.lower()):
+            if service.is_default_version:
+                default_service = service
+                break
+            else:
+                try:
+                    default_service = sorted(
+                        (service.version, default_service), reverse=True)[0]
+                except TypeError:  # latest_service is None
+                    default_service = service
+        return default_service
 
     @classmethod
     def load_config(cls, config_path=None, **config_keys):

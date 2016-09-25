@@ -1,14 +1,14 @@
 import logging
 
-from pycsw.parameters import OperationParameter
+from .parameters import OperationParameter
 
 logger = logging.getLogger(__name__)
 
 
-class OperationProcessor:
-    """Base class for all CSW operations.
+class Operation:
+    """Base class for all pycsw operations.
 
-    All CSW operations, including those used by plugins, should adhere to
+    All operations, including those used by plugins, should adhere to
     the public interface of this base class. This can be achieved by
     inheriting from it and completing the methods that do not have a default
     implementation (you can also duck type your own classes).

@@ -1,6 +1,8 @@
 --requirement base.txt
 
 coverage==4.0.3
+flake8<3.0.0
+mock==2.0.0
 pytest==2.9.1
 pytest-cov==2.2.1
 pytest-flake8==0.2

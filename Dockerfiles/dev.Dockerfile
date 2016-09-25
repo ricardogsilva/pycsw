@@ -25,7 +25,3 @@ RUN pip install --requirement requirements/dev.txt && \
 EXPOSE 8888
 
 USER user
-
-# TODO
-# * mount a local dir with ipython notebooks as well as the source code
-#   for pycsw. This will allow persisting notebooks

@@ -1,21 +1,20 @@
 import logging
 
-from pycsw import parameters
-from pycsw.operationbase import OperationProcessor
-
-from pycsw.exceptions import CswError
-from pycsw.exceptions import INVALID_PARAMETER_VALUE
-from pycsw.exceptions import INVALID_UPDATE_SEQUENCE
-from pycsw.exceptions import PycswError
-from pycsw.exceptions import VERSION_NEGOTIATION_FAILED
-from pycsw.httprequest import HttpVerb
+from .... import parameters
+from ....exceptions import CswError
+from ....exceptions import INVALID_PARAMETER_VALUE
+from ....exceptions import INVALID_UPDATE_SEQUENCE
+from ....exceptions import PycswError
+from ....exceptions import VERSION_NEGOTIATION_FAILED
+from ....httprequest import HttpVerb
+from ....operationbase import Operation
 
 logger = logging.getLogger(__name__)
 
 
 # FIXME - It is kind of lame that section names appear on two different places
-class GetCapabilities202OperationProcessor(OperationProcessor):
-    """GetCapabilities operation processor.
+class GetCapabilities(Operation):
+    """GetCapabilities operation.
 
     Parameters
     ----------
