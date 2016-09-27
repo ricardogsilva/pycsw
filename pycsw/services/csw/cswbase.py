@@ -36,10 +36,10 @@ class CswService(servicebase.Service):
     distributed_search = None
     repository = None
 
-    def __init__(self, repository=None, distributed_search=None, **kwargs):
+    def __init__(self, repository=None, federated_catalogues=None, **kwargs):
         super().__init__(**kwargs)
-        self.distributed_search = (distributed_search if
-                                   distributed_search is not None
+        self.distributed_search = (federated_catalogues if
+                                   federated_catalogues is not None
                                    else CswDistributedSearch())
         self.repository = repository
 
@@ -87,8 +87,8 @@ class CswOgcKvpProcessor(CswOgcSchemaProcessor):
     def parse_request(self, request):
         try:
             request_info = self.parse_general_request_info(request)
-            operation = self.service.get_enabled_operation(
-                request_info["request"])
+            operation = [op for op in self.service.operations if
+                         op.name == request_info["request"]][0]
             if HttpVerb.GET in operation.allowed_http_verbs:
                 parameter_parser = {
                     "GetCapabilities": self.parse_get_capabilities,
@@ -99,7 +99,7 @@ class CswOgcKvpProcessor(CswOgcSchemaProcessor):
                 raise exceptions.CswError(code=NO_APPLICABLE_CODE)
         except exceptions.CswError:
             raise  # do we really need to do this?
-        except (TypeError, exceptions.PycswError):
+        except (IndexError):
             raise exceptions.CswError(code=OPERATION_NOT_SUPPORTED)
         else:
             return operation, parameters

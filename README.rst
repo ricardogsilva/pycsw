@@ -51,7 +51,7 @@ features the following concepts:
 
 * *Server* - The usual entrypoint for an incoming request. A server may include
   several services. The server selects the default service of each type from
-  its list of services. The server also has the following responsabilities:
+  its list of services. The server also has the following responsibilities:
 
   * Load configuration parameters. pycsw aims at being very flexible and being
     an attractive platform for integrating with other tools (as is the case

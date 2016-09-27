@@ -26,15 +26,15 @@ import yaml
 from . import contacts
 from . import exceptions
 from . import utilities
-from .httprequest import HttpVerb
-from .repositories.sla.repository import CswSlaRepository
-from .services.csw import csw202
-from .services.csw import cswbase
-from .services.csw.responserenderers import renderers
-from .services.csw.operations.getcapabilities import (
-    GetCapabilities202OperationProcessor)
-from .services.csw.operations.getrecordbyid import (
-    GetRecordById202Operation)
+#from .httprequest import HttpVerb
+#from .repositories.sla.repository import CswSlaRepository
+#from .services.csw import csw202
+#from .services.csw import cswbase
+#from .services.csw.responserenderers import renderers
+#from .services.csw.operations.getcapabilities import (
+#    GetCapabilities202OperationProcessor)
+#from .services.csw.operations.getrecordbyid import (
+#    GetRecordById202Operation)
 
 logger = logging.getLogger(__name__)
 
@@ -77,108 +77,108 @@ class PycswServer:
         return self._services
 
     # DEPRECATED
-    @classmethod
-    def setup_csw202_service(cls, repository=None):
-        """Create the CSW version 2.0.2 service."""
-        ogc_record_mapping = {
-            "title": "dc:title",
-            "creator": "dc:creator",
-            "subject": "dc:subject",
-            "abstract": "dct:abstract",
-            "publisher": "dc:publisher",
-            "contributor": "dc:contributor",
-            "modified": "dct:modified",
-            "type_": "dc:type",
-            "format_": "dc:format",
-            "identifier": "dc:identifier",
-            "source": "dc:source",
-            "language": "dc:language",
-            "association": "dc:relation",
-            "bounding_box": "ows:BoundingBox",
-            "rights": "dc:rights",
-        }
-        ogc_element_set_names = {
-            "full": [
-                "dc:identifier",
-                "dc:title",
-                "dc:creator",
-                "dc:subject",
-                "dct:abstract",
-                "dc:publisher",
-                "dc:contributor",
-                "dct:modified",
-                "dc:type",
-                "dc:format",
-                "dc:source",
-                "dc:language",
-                "dc:relation",
-                "ows:BoundingBox",
-                "dc:rights",
-            ],
-            "summary": [
-                "dc:identifier",
-                "dc:title",
-                "dc:type",
-                "dc:subject",
-                "dc:format",
-                "dc:relation",
-                "dct:modified",
-                "dct:abstract",
-                "dct:spatial",  # ?
-                "ows:BoundingBox",
-            ],
-            "brief": [
-                "dc:identifier",
-                "dc:title",
-                "dc:type",
-                "ows:BoundingBox",
-            ],
-        }
-        # schema_processors
-        post_processor = cswbase.CswOgcPostProcessor(
-            type_names=["csw:Record"],
-            record_mapping=ogc_record_mapping,
-            element_set_names=ogc_element_set_names,
-        )
+    #@classmethod
+    #def setup_csw202_service(cls, repository=None):
+    #    """Create the CSW version 2.0.2 service."""
+    #    ogc_record_mapping = {
+    #        "title": "dc:title",
+    #        "creator": "dc:creator",
+    #        "subject": "dc:subject",
+    #        "abstract": "dct:abstract",
+    #        "publisher": "dc:publisher",
+    #        "contributor": "dc:contributor",
+    #        "modified": "dct:modified",
+    #        "type_": "dc:type",
+    #        "format_": "dc:format",
+    #        "identifier": "dc:identifier",
+    #        "source": "dc:source",
+    #        "language": "dc:language",
+    #        "association": "dc:relation",
+    #        "bounding_box": "ows:BoundingBox",
+    #        "rights": "dc:rights",
+    #    }
+    #    ogc_element_set_names = {
+    #        "full": [
+    #            "dc:identifier",
+    #            "dc:title",
+    #            "dc:creator",
+    #            "dc:subject",
+    #            "dct:abstract",
+    #            "dc:publisher",
+    #            "dc:contributor",
+    #            "dct:modified",
+    #            "dc:type",
+    #            "dc:format",
+    #            "dc:source",
+    #            "dc:language",
+    #            "dc:relation",
+    #            "ows:BoundingBox",
+    #            "dc:rights",
+    #        ],
+    #        "summary": [
+    #            "dc:identifier",
+    #            "dc:title",
+    #            "dc:type",
+    #            "dc:subject",
+    #            "dc:format",
+    #            "dc:relation",
+    #            "dct:modified",
+    #            "dct:abstract",
+    #            "dct:spatial",  # ?
+    #            "ows:BoundingBox",
+    #        ],
+    #        "brief": [
+    #            "dc:identifier",
+    #            "dc:title",
+    #            "dc:type",
+    #            "ows:BoundingBox",
+    #        ],
+    #    }
+    #    # schema_processors
+    #    post_processor = cswbase.CswOgcPostProcessor(
+    #        type_names=["csw:Record"],
+    #        record_mapping=ogc_record_mapping,
+    #        element_set_names=ogc_element_set_names,
+    #    )
 
-        kvp_processor = cswbase.CswOgcKvpProcessor(
-            type_names=["csw:Record"],
-            record_mapping=ogc_record_mapping,
-            element_set_names=ogc_element_set_names,
-        )
-        # operations
-        get_capabilities = GetCapabilities202OperationProcessor(
-            enabled=True,
-            allowed_http_verbs={HttpVerb.GET}
-        )
-        get_record_by_id = GetRecordById202Operation(
-            enabled=True,
-            allowed_http_verbs={HttpVerb.GET}
-        )
-        csw202_service = csw202.Csw202Service(
-            distributed_search=cswbase.CswDistributedSearch(),
-            repository=repository,
-        )
-        csw202_service.request_parsers.append(post_processor)
-        csw202_service.request_parsers.append(kvp_processor)
-        csw202_service.operations.append(get_capabilities)
-        csw202_service.operations.append(get_record_by_id)
+    #    kvp_processor = cswbase.CswOgcKvpProcessor(
+    #        type_names=["csw:Record"],
+    #        record_mapping=ogc_record_mapping,
+    #        element_set_names=ogc_element_set_names,
+    #    )
+    #    # operations
+    #    get_capabilities = GetCapabilities202OperationProcessor(
+    #        enabled=True,
+    #        allowed_http_verbs={HttpVerb.GET}
+    #    )
+    #    get_record_by_id = GetRecordById202Operation(
+    #        enabled=True,
+    #        allowed_http_verbs={HttpVerb.GET}
+    #    )
+    #    csw202_service = csw202.Csw202Service(
+    #        distributed_search=cswbase.CswDistributedSearch(),
+    #        repository=repository,
+    #    )
+    #    csw202_service.request_parsers.append(post_processor)
+    #    csw202_service.request_parsers.append(kvp_processor)
+    #    csw202_service.operations.append(get_capabilities)
+    #    csw202_service.operations.append(get_record_by_id)
 
-        csw202_service.response_renderers.append(
-            renderers.OgcCswXmlRenderer())
+    #    csw202_service.response_renderers.append(
+    #        renderers.OgcCswXmlRenderer())
 
-        logger.debug("Initialized csw202 service")
-        return csw202_service
+    #    logger.debug("Initialized csw202 service")
+    #    return csw202_service
 
     # DEPRECATED
-    def setup_csw202_repository(self, engine_url=None, echo=False,
-                                query_translator_modules=None):
-        repository = CswSlaRepository(
-            engine_url=engine_url,
-            echo=echo,
-            query_translator_modules=query_translator_modules
-        )
-        return repository
+    #def setup_csw202_repository(self, engine_url=None, echo=False,
+    #                            query_translator_modules=None):
+    #    repository = CswSlaRepository(
+    #        engine_url=engine_url,
+    #        echo=echo,
+    #        query_translator_modules=query_translator_modules
+    #    )
+    #    return repository
 
     def get_service(self, name, version):
         """Return the service with the specified name and version."""
@@ -228,37 +228,37 @@ class PycswServer:
                                         "available services.")
 
     # FIXME: DEPRECATED
-    def finish_loading_csw_services(self):
-        """Update metadata on CSW services after the have been loaded.
+    #def finish_loading_csw_services(self):
+    #    """Update metadata on CSW services after the have been loaded.
 
-        This method is specially relevant for the GetCapabilities operations
-        defined in each available CSW service. Since GetCapabilities accepts
-        the `AcceptVersions` parameter, it becomes necessary to let each
-        GetCapabilities operation instance know about the various CSW services
-        that are available on the server.
+    #    This method is specially relevant for the GetCapabilities operations
+    #    defined in each available CSW service. Since GetCapabilities accepts
+    #    the `AcceptVersions` parameter, it becomes necessary to let each
+    #    GetCapabilities operation instance know about the various CSW services
+    #    that are available on the server.
 
-        """
-        csw_versions = [s.version for s in self.services if s.name == "CSW"]
+    #    """
+    #    csw_versions = [s.version for s in self.services if s.name == "CSW"]
 
-        for service in (s for s in self.services if s.name == "CSW"):
-            try:
-               op = service.get_enabled_operation("GetCapabilities")
-            except exceptions.PycswError:
-                continue  # this service doesn't have a GetCapabilities
-            else:
-                allowed_values = {
-                    "accept_versions": csw_versions,
-                    "accept_formats": [p.media_type for p in
-                                       service.request_parsers if
-                                       p.media_type],
-                }
-                defaults = {
-                    "accept_versions": [self.default_csw_service.version],
-                    "accept_formats": [
-                        self.default_csw_service.default_output_format],
-                }
-                op.update_parameter_allowed_values(**allowed_values)
-                op.update_parameter_defaults(**defaults)
+    #    for service in (s for s in self.services if s.name == "CSW"):
+    #        try:
+    #           op = service.get_enabled_operation("GetCapabilities")
+    #        except exceptions.PycswError:
+    #            continue  # this service doesn't have a GetCapabilities
+    #        else:
+    #            allowed_values = {
+    #                "accept_versions": csw_versions,
+    #                "accept_formats": [p.media_type for p in
+    #                                   service.request_parsers if
+    #                                   p.media_type],
+    #            }
+    #            defaults = {
+    #                "accept_versions": [self.default_csw_service.version],
+    #                "accept_formats": [
+    #                    self.default_csw_service.default_output_format],
+    #            }
+    #            op.update_parameter_allowed_values(**allowed_values)
+    #            op.update_parameter_defaults(**defaults)
 
     def load_services(self, config):
         """Load the services specified in the input config."""

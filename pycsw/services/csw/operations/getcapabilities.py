@@ -2,9 +2,7 @@ import logging
 
 from .... import parameters
 from ....exceptions import CswError
-from ....exceptions import INVALID_PARAMETER_VALUE
 from ....exceptions import INVALID_UPDATE_SEQUENCE
-from ....exceptions import PycswError
 from ....exceptions import VERSION_NEGOTIATION_FAILED
 from ....httprequest import HttpVerb
 from ....operationbase import Operation
@@ -15,6 +13,11 @@ logger = logging.getLogger(__name__)
 # FIXME - It is kind of lame that section names appear on two different places
 class GetCapabilities(Operation):
     """GetCapabilities operation.
+
+    Note:
+    This class models the GetCapabilities as specified in CSW v2.0.2. There
+    are modifications in the OWS standard that most likely apply to CSW v3.0.0.
+    therefore this class has to be changed when used in the version 3.0.0
 
     Parameters
     ----------
@@ -32,7 +35,9 @@ class GetCapabilities(Operation):
 
     accept_versions = parameters.TextListParameter(
         "AcceptVersions",
-        optional=True
+        optional=True,
+        # similarly to the GetDomain operation, use __init__ to get the
+        # allowed values
     )
     sections = parameters.TextListParameter(
         "Sections",
@@ -43,13 +48,15 @@ class GetCapabilities(Operation):
             "ServiceIdentification",
             "ServiceProvider",
             "OperationsMetadata",
-            "Contents",
             "Filter_Capabilities",
         ]
     )
     accept_formats = parameters.TextListParameter(
         "AcceptFormats",
-        optional=True
+        optional=True,
+        default="text/xml",  # as defined in OGC 05-008 OWS Common, Table 2
+        # allowed values should be calculated from the available
+        # ResponseRenderer objects of the service
     )
     update_sequence = parameters.IntParameter(
         "updateSequence",
@@ -58,19 +65,13 @@ class GetCapabilities(Operation):
         default=0
     )
 
-    def __init__(self, accept_versions=None, sections=None,
-                 accept_formats=None, update_sequence=None, enabled=True,
-                 allowed_http_verbs=None):
-        super().__init__(enabled=enabled,
-                         allowed_http_verbs=allowed_http_verbs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # OGC CSWv2.0.2 mandates that GetCapabilities
         # must accept GET requests
         self.allowed_http_verbs.add(HttpVerb.GET)
-        self.accept_versions = accept_versions
-        self.sections = sections
-        self.accept_formats = accept_formats
-        self.update_sequence = update_sequence
-        self.constraints = []
+        self._update_accept_formats()
+        self._update_accept_versions()
 
     def __call__(self):
         """Process the GetCapabilities request.
@@ -99,123 +100,26 @@ class GetCapabilities(Operation):
                 sections_info = self.get_sections()
                 result.update(sections_info)
             elif self.update_sequence == latest:
+                # result is complete, no need to add anything else
                 logger.info("Partial capabilities requested")
-                pass  # result is complete, no need to add anything else
             else:
                 raise CswError(code=INVALID_UPDATE_SEQUENCE)
         elif service_to_use is not None:
             # if the GetCapabilities operation of the service_to_use
             # is enabled, process it and return the result
             try:
-                other_op = service_to_use.get_enabled_operation(self.name)
-            except PycswError:
+                other_op = [op for op in service_to_use.operations if
+                            op.name == self.name][0]
+            except IndexError:
                 raise CswError(code=VERSION_NEGOTIATION_FAILED)
             else:
-                logger.debug("Transferring operation {0.name} to "
-                             "service {1}...".format(self, service_to_use))
-                result = other_op(
-                    accept_versions=self.accept_versions,
-                    sections=self.sections,
-                    accept_formats=self.accept_formats,
-                    update_sequence=self.update_sequence
-                )
+                result = self._execute_another_version(other_op)
         else:
             raise CswError(code=VERSION_NEGOTIATION_FAILED)
         return result, 200
 
-    def update_parameter_defaults(self, accept_versions=None, sections=None,
-                                  accept_formats=None, update_sequence=None):
-        """Update the default values of the operation's parameters.
-
-        This method is called by the pycsw server at the end of its
-        initialization. After having been initialized the server can now
-        gather details on other available services, which are needed for the
-        GetCapabilities operation.
-
-        Parameters
-        ----------
-        accept_versions: list
-            An iterable with strings carrying the default values for  the
-            `accept_versions` parameter.
-        sections: list
-            An iterable with strings carrying the default values for  the
-            `sections` parameter.
-        accept_formats: list
-            An iterable with strings carrying the default values for  the
-            `accept_formats` parameter.
-        update_sequence: int
-            The default value for the `update_sequence` parameter.
-
-        """
-
-        if accept_versions is not None:
-            self.__class__.accept_versions.default = list(accept_versions)
-        if sections is not None:
-            self.__class__.sections.default = list(sections)
-        if accept_formats is not None:
-            self.__class__.accept_formats.default = list(accept_formats)
-        if update_sequence is not None:
-            self.__class__.update_sequence.default = update_sequence
-
-    def update_parameter_allowed_values(self, accept_versions=None,
-                                        sections=None, accept_formats=None,
-                                        update_sequence=None):
-        """Update the allowed values values of the operation's parameters.
-
-        This method is called by the pycsw server at the end of its
-        initialization. After having been initialized the server can now
-        gather details on other available services, which are needed for the
-        GetCapabilities operation.
-
-        Parameters
-        ----------
-        accept_versions: list
-            An iterable with strings carrying the allowed values for  the
-            `accept_versions` parameter.
-        sections: list
-            An iterable with strings carrying the allowed values for  the
-            `sections` parameter.
-        accept_formats: list
-            An iterable with strings carrying the allowed values for  the
-            `accept_formats` parameter.
-        update_sequence: list
-            An iterable with ints carrying the allowed values for  the
-            `update_sequence` parameter.
-
-        """
-
-        if accept_versions is not None:
-            self.__class__.accept_versions.allowed_values = accept_versions
-        if sections is not None:
-            self.__class__.sections.allowed_values = sections
-        if accept_formats is not None:
-            self.__class__.accept_formats.allowed_values = accept_formats
-        if update_sequence is not None:
-            self.__class__.update_sequence.allowed_values = update_sequence
-
-    def prepare(self, accept_versions=None, sections=None,
-                accept_formats=None, update_sequence=None):
-        try:
-            self.accept_versions = accept_versions
-        except ValueError:
-            raise CswError(code=VERSION_NEGOTIATION_FAILED)
-
-        try:
-            self.sections = sections
-        except ValueError:
-            raise CswError(code=INVALID_PARAMETER_VALUE, locator="sections")
-        try:
-            self.accept_formats = accept_formats
-        except ValueError:
-            raise CswError(code=INVALID_PARAMETER_VALUE,
-                           locator="accept_formats")
-        try:
-            self.update_sequence = update_sequence
-        except ValueError:
-            raise CswError(code=INVALID_UPDATE_SEQUENCE)
-
     def get_service_to_use(self):
-        """Select the service more suitable for servicing the request.
+        """Select the CSW service more suitable for servicing the request.
 
         This method will compare the currently available CSW services on the
         server with the value of the AcceptVersions parameter and select
@@ -231,47 +135,53 @@ class GetCapabilities(Operation):
 
         """
 
-        for requested in self.accept_versions:
-            service = self.service.server.get_service(
-                self.service.name, requested)
+        service = None
+        for version in self.accept_versions:
+            for existing in self.service.server.services:
+                if (existing.name == self.service.name and
+                            existing.version == version):
+                    service = existing
+                    break
             if service is not None:
                 break
         else:
-            service = self.service.server.default_csw_service
+            service = self.service.server.get_default_service(
+                self.service.name)
         return service
 
     def get_sections(self):
         """Return information on available capabilities sections."""
         result = {}
-        section_getters = {
+        getters = {
             "ServiceIdentification": self.get_service_identification,
             "ServiceProvider": self.get_service_provider,
             "OperationsMetadata": self.get_operations_metadata,
             "Contents": self.get_contents,
             "Filter_Capabilities": self.get_filter_capabilities,
         }
-        if "All" in self.sections:
-            sections = section_getters.keys()
-        else:
-            sections = self.sections
-        for name, getter in section_getters.items():
-            allowed = name in self.__class__.sections.allowed_values
-            requested = name in sections
-            if allowed and requested:
-                result[name] = getter()
+        sections = getters.keys() if "All" in self.sections else self.sections
+        for section in sections:
+            result[section] = getters[section]()
         return result
 
-
     def get_service_identification(self):
+        """Return information on the service.
+
+        This method will only produce valid results if the instance has a
+        parent service and if that service has a parent server.
+
+        Raises
+        ------
+        ValueError
+            When the instance does not have a parent service
+
+        """
+
         csw_versions = []
         for csw_service in (s for s in self.service.server.services if
                             s.name == "CSW"):
-            try:
-                csw_service.get_enabled_operation(self.name)
+            if self.name in (op.name for op in csw_service.operations):
                 csw_versions.append(csw_service.version)
-            except PycswError:  # GetCapabilities operation is not enabled
-                pass
-
         return {
             "ServiceType": self.service.name,
             "ServiceTypeVersion": csw_versions,
@@ -283,6 +193,7 @@ class GetCapabilities(Operation):
         }
 
     def get_service_provider(self):
+        """Return information on the service provider."""
         provider_contact = self.service.server.provider_contact
         provider_site = self.service.server.provider_site
         contact = provider_contact.contact_info
@@ -341,3 +252,46 @@ class GetCapabilities(Operation):
 
     def get_contents(self):
         pass
+
+    def _execute_another_version(self, other_operation):
+        """Execute another version of the operation.
+
+        This method is used when the client elects a version of the CSW service
+        that is different than the current one.
+
+        """
+
+        logger.debug("Transferring operation {0.name} to "
+                     "service {1}...".format(self, service_to_use))
+        other_operation.accept_versions = self.accept_versions
+        other_operation.accept_formats = self.accept_formats
+        other_operation.sections = self.sections
+        other_operation.update_sequence = self.update_sequence
+        return other_operation()
+
+    def _update_accept_formats(self):
+        """Update the accept_formats parameter with available values.
+
+        The service is able to output responses in the formats that are
+        available in its ResponseRenderer objects. Therefore we need to scan
+        the available renderers and get their output media types.
+
+        """
+
+        available_formats = []
+        if self.service is not None:
+            for renderer in self.service.response_renderers:
+                available_formats.append(renderer.media_type)
+            self.__class__.accept_formats.allowed_values = available_formats
+            self.accept_formats = available_formats
+
+    def _update_accept_versions(self):
+        """Update the accept_versions parameter with the available versions."""
+
+        versions_available = []
+        if self.service is not None:
+            for service in self.service.server.services:
+                versions_available.append(service.version)
+            self.__class__.accept_versions.allowed_values = versions_available
+            self.accept_versions = versions_available
+

@@ -172,23 +172,6 @@ class Service:
             **version_config
         )
 
-    def get_enabled_operation(self, name):
-        """Return the operation that matches the input name.
-
-        If an operation with a name that is equal to the input name exists
-        and is enabled it is returned.
-
-        """
-
-        for operation in (op for op in self.operations if op.enabled):
-            if operation.name == name:
-                result = operation
-                break
-        else:
-            raise exceptions.PycswError("Operation {!r} is not "
-                                        "enabled".format(name))
-        return result
-
     def get_request_parser(self, request):
         """Get a suitable RequestParser object for the request
 
