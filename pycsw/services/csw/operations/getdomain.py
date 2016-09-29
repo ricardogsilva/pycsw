@@ -11,49 +11,56 @@ class GetDomain(Operation):
     """GetDomain operation.
 
     This operation needs to know about all of the parameters that are
-    available in each of its Service's operations. As such, upon initialization
-    it will load all other operations.
+    available in each of its Service's operations.
 
     """
 
     name = "GetDomain"
-    parameter_name = parameters.TextListParameter("ParameterName",
-                                                  optional=True)
-    property_name = parameters.TextListParameter("PropertyName", optional=True)
-    test = parameters.IntParameter("MyParameter", default=0,
-                                   allowed_values=range(10), optional=False)
+    parameter_name = parameters.TextListParameter(
+        "ParameterName",
+        optional=True,
+        allowed_values=["GetDomain.ParameterName", "GetDomain.PropertyName"],
+        default=["GetDomain.ParameterName", "GetDomain.PropertyName"]
+    )
+    property_name = parameters.TextListParameter(
+        "PropertyName",
+        optional=True
+    )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._update_parameter_name()
+    def __call__(self):
+        """Execute the GetDomain operation."""
+        self.update_allowed_parameter_names()
+        param_domains = dict()
+        for param in self.parameter_name:
+            # at this point we know that params have already been validated
+            # so they are legal, no need to recheck
+            op_name, param_name = param.split(".")
+            operation = [op for op in self.service.operations if
+                         op.name == op_name][0]
+            domain = operation.get_parameter_domain(param_name)
+            param_domains[param] = domain
+        return param_domains
 
-    @property
-    def service(self):
-        return super().service
+    def set_parameter_values(self, **kwargs):
+        if "ParameterName" in kwargs.keys():
+            self.update_allowed_parameter_names()
+        super().set_parameter_values(**kwargs)
 
-    @service.setter
-    def service(self, new_service):
-        self._service = new_service
-        self._update_parameter_name()
+    def update_allowed_parameter_names(self):
+        """Get the allowed values for the 'ParameterName' parameter.
 
-    def _update_parameter_name(self):
-        logger.debug("_update_parameter_name called")
+        The 'ParameterName' parameter holds the names of all operation
+        parameters that are currently available in the service.
+
+        """
+
         existing_parameter_names = ["{0}.{1}".format(self.name,
                                                      param.public_name) for
                                     param in self.parameters]
         if self.service is not None:
-            for operation in (op for op in self.service.operations if
-                              op is not self):
-                op_params = ["{0}.{1}".format(operation.name,
-                                              param.public_name) for param
-                             in operation.parameters]
-                existing_parameter_names.extend(op_params)
-            #for op in self.service.operations:
-            #    if op is not self:  # do not repeat own parameters
-            #        op_params = ["{0}.{1}".format(op.name, param.public_name)
-            #                     for param in op.parameters]
-            #        existing_parameter_names.extend(op_params)
-            print("existing_parameter_names: {}".format(existing_parameter_names))
+            for op in self.service.operations:
+                if op is not self:  # do not repeat own parameters
+                    op_params = ["{0}.{1}".format(op.name, param.public_name)
+                                 for param in op.parameters]
+                    existing_parameter_names.extend(op_params)
         self.__class__.parameter_name.allowed_values = existing_parameter_names
-        logger.debug("setting parameter_name...")
-        self.parameter_name = existing_parameter_names

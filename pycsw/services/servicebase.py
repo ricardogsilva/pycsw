@@ -239,7 +239,7 @@ class Service:
         """
 
         container = utilities.LazyManagedList(manager=self,
-                                              related_name="_service")
+                                              related_name="service")
         for op_name, op_params in operations_config.items():
             class_ = op_params.pop("class")
             if op_params.pop("enabled", False):

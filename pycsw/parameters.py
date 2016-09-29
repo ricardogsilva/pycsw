@@ -135,6 +135,6 @@ class TextListParameter(OperationParameter):
             elif possible_value in self.allowed_values:
                 result.append(possible_value)
             else:
-                raise ValueError("Value {0} is not "
+                raise ValueError("Value {0!r} is not "
                                  "allowed".format(possible_value))
         return result

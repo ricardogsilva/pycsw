@@ -5,7 +5,7 @@
 >>> try:
 >>>     parser = server.get_request_parser(request)
 >>>     operation, parameters = parser.parse_request(request)
->>>     operation.prepare(**parameters)
+>>>     operation.set_parameter_values(**parameters)
 >>>     service = parser.service
 >>>     response_renderer = service.get_renderer(operation, request)
 >>>     response, status_code = operation()
