@@ -37,7 +37,7 @@ class Operation:
       from the configuration. These values constrain what the operation can
       do;
 
-    * Parameters, which can set by clients. Parameters may be optional or
+    * Parameters, which can be set by clients. Parameters may be optional or
       mandatory and they may have a range of allowed values. These values
       represent the way the client wants to call the operation;
 

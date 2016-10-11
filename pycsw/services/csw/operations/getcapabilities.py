@@ -77,7 +77,7 @@ class GetCapabilities(Operation):
         """Process the GetCapabilities request.
 
         Processing assumes that the relevant parameters have been previously
-        set by using the `prepare()` method.
+        set by using the `set_parameter_values()` method.
 
         Returns
         -------
@@ -150,7 +150,19 @@ class GetCapabilities(Operation):
         return service
 
     def get_sections(self):
-        """Return information on available capabilities sections."""
+        """Return information on available capabilities sections.
+
+        This method uses the instance's `sections` attribute in order to know
+        what sections have been requested by the client. Therefore, it should
+        be preceeded by a call to `update_parameter_values`
+
+        Returns
+        -------
+        dict
+            The information on selected sections.
+
+        """
+
         result = {}
         getters = {
             "ServiceIdentification": self.get_service_identification,
@@ -167,85 +179,83 @@ class GetCapabilities(Operation):
     def get_service_identification(self):
         """Return information on the service.
 
-        This method will only produce valid results if the instance has a
-        parent service and if that service has a parent server.
-
-        Raises
-        ------
-        ValueError
-            When the instance does not have a parent service
+        Returns
+        -------
+        dict
+            Metadata information on the service
 
         """
 
-        csw_versions = []
-        for csw_service in (s for s in self.service.server.services if
-                            s.name == "CSW"):
-            if self.name in (op.name for op in csw_service.operations):
-                csw_versions.append(csw_service.version)
-        return {
-            "ServiceType": self.service.name,
-            "ServiceTypeVersion": csw_versions,
-            "Title": self.service.title,
-            "Abstract": self.service.abstract,
-            "Keywords": self.service.keywords,
-            "Fees": self.service.fees,
-            "AccessConstraints": self.service.access_constraints,
-        }
+        if self.service is not None:
+            result = {
+                "ServiceType": self.service.name,
+                "Title": self.service.title,
+                "Abstract": self.service.abstract,
+                "Keywords": self.service.keywords,
+                "Fees": self.service.fees,
+                "AccessConstraints": self.service.access_constraints,
+            }
+            try:
+                csw_versions = []
+                for csw_service in (s for s in self.service.server.services if
+                                    s.name == "CSW"):
+                    if self.name in (op.name for op in csw_service.operations):
+                        csw_versions.append(csw_service.version)
+                result["ServiceTypeVersion"] = csw_versions
+            except ValueError:
+                pass
+        else:
+            result = {}
+        return result
 
     def get_service_provider(self):
-        """Return information on the service provider."""
-        provider_contact = self.service.server.provider_contact
-        provider_site = self.service.server.provider_site
-        contact = provider_contact.contact_info
-        return {
-            "ProviderName": self.service.server.provider_name,
-            "ProviderSite": {
-                "linkage": provider_site.linkage,
-                "name": provider_site.name,
-                "protocol": provider_site.protocol,
-                "description": provider_site.description,
-            },
-            "ServiceContact": {
-                "IndividualName": provider_contact.individual_name,
-                "PositionName": provider_contact.position_name,
-                "Role": provider_contact.role.name,
-                "ContactInfo": {
-                    "Address": {
-                        "AdministrativeArea":
-                            contact.address.administrative_area,
-                        "City": contact.address.city,
-                        "Country": contact.address.country,
-                        "DeliveryPoint": contact.address.delivery_point,
-                        "ElectronicMailAddress":
-                            contact.address.electronic_mail_address,
-                        "PostalCode": contact.address.postal_code,
-                    },
-                    "ContactInstructions": contact.contact_instructions,
-                    "HoursOfService": contact.hours_of_service,
-                    "OnlineResource": contact.online_resource.linkage,
-                    "Phone": contact.phone.voice
+        """Return metadata information on the service provider."""
+        try:
+            provider_contact = self.service.server.provider_contact
+            provider_site = self.service.server.provider_site
+        except ValueError:
+            result = {}
+        else:
+            contact = provider_contact.contact_info
+            result = {
+                "ProviderName": self.service.server.provider_name,
+                "ProviderSite": {
+                    "linkage": provider_site.linkage,
+                    "name": provider_site.name,
+                    "protocol": provider_site.protocol,
+                    "description": provider_site.description,
                 },
-                "organisationName": provider_contact.organisation_name,
-            }
-        }
-
-    # TODO: Generate URLS for DCP metadata
-    def get_operations_metadata(self):
-        ops = []
-        for op in self.service.operations:
-            if op.enabled:
-                op_data = {
-                    "name": op.name,
-                    "DCP": [(url[1], url[2]) for url in
-                            self.service.get_urls() if url[0] == self],
-                    "Parameter": [(p.public_name, p.allowed_values,
-                                   p.metadata) for p in op.parameters],
-                    "Constraint": [(c.name, c.allowed_values, c.metadata)
-                                   for c in op.constraints],
-                    "Metadata": [],
+                "ServiceContact": {
+                    "IndividualName": provider_contact.individual_name,
+                    "PositionName": provider_contact.position_name,
+                    "Role": provider_contact.role.name,
+                    "ContactInfo": {
+                        "Address": {
+                            "AdministrativeArea":
+                                contact.address.administrative_area,
+                            "City": contact.address.city,
+                            "Country": contact.address.country,
+                            "DeliveryPoint": contact.address.delivery_point,
+                            "ElectronicMailAddress":
+                                contact.address.electronic_mail_address,
+                            "PostalCode": contact.address.postal_code,
+                        },
+                        "ContactInstructions": contact.contact_instructions,
+                        "HoursOfService": contact.hours_of_service,
+                        "OnlineResource": contact.online_resource.linkage,
+                        "Phone": contact.phone.voice
+                    },
+                    "organisationName": provider_contact.organisation_name,
                 }
-                ops.append(op_data)
-        return ops
+            }
+        return result
+
+    def get_operations_metadata(self):
+        return {
+            "operations": self._get_service_operations_metadata(),
+            "parameters": self._get_service_parameters_metadata(),
+            "constraints": self._get_service_constraints_metadata(),
+        }
 
     def get_filter_capabilities(self):
         pass
@@ -268,6 +278,40 @@ class GetCapabilities(Operation):
         other_operation.sections = self.sections
         other_operation.update_sequence = self.update_sequence
         return other_operation()
+
+    def _get_service_constraints_metadata(self):
+        """Return service constraints
+
+        According to the CSW standard, if the service supports SOAP encoding,
+        then there should be a constraint called PostEncoding with the value
+        'SOAP' in addition to the value 'XML' (and 'JSON', if supported). This
+        means that we must scan available RequestParser objects for the
+        server and figure out if these parsers support such POST encodings
+
+        """
+
+        return []  # not properly implemented yet
+
+    def _get_service_parameters_metadata(self):
+        return []  # not properly implemented yet
+
+    # TODO: Generate URLS for DCP metadata
+    def _get_service_operations_metadata(self):
+        result = []
+        for op in self.service.operations:
+            if op.enabled:
+                op_data = {
+                    "name": op.name,
+                    "DCP": [(url[1], url[2]) for url in
+                            self.service.get_urls() if url[0] == self],
+                    "Parameter": [(p.public_name, p.allowed_values,
+                                   p.metadata) for p in op.parameters],
+                    "Constraint": [(c.name, c.allowed_values, c.metadata)
+                                   for c in op.constraints],
+                    "Metadata": [],
+                }
+                result.append(op_data)
+        return result
 
     def _update_accept_formats(self):
         """Update the accept_formats parameter with available values.

@@ -259,7 +259,7 @@ class RequestParser:
       the underlying service, to decide which of its RequestParsers
       is able to process an input request
     * Parsing the incoming request and extract the relevant parameters for
-      the requested operation. This means that each reuqest_parser must know
+      the requested operation. This means that each request_parser must know
       which operations it is able to parse
 
     """
