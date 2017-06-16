@@ -525,7 +525,8 @@ def parse_wms(context, repos, record, identifier):
         "pycsw:BoundingBox": wkt_polygon,
     }
     for field, value in service_info.items():
-        _set(context, serviceobj, mapping, value)
+        setattr(serviceobj, context.md_core_model['mappings'][field],
+                value)
     recobjs.append(serviceobj)
     # generate record foreach layer
     LOGGER.info('Harvesting {} WMS layers'.format(len(md.contents)))
