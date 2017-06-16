@@ -53,3 +53,6 @@ def test_bbox_from_polygons_invalid():
     bboxes = "stuff"
     with pytest.raises(RuntimeError):
         metadata.bbox_from_polygons(bboxes)
+
+
+def test_parse_record():

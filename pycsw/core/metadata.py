@@ -33,27 +33,198 @@
 
 import logging
 import uuid
-from six.moves import range
-from six.moves.urllib.parse import urlparse
 
 from geolinks import sniff_link
 from owslib.util import build_get_url
 from shapely.wkt import loads
 from shapely.geometry import MultiPolygon
+from six.moves import range
+from six.moves.urllib.parse import urlparse
 
-from pycsw.core.etree import etree
-from pycsw.core import util
+from .etree import etree
+from . import util
 
 LOGGER = logging.getLogger(__name__)
 
+
 def parse_record(context, record, repos=None,
-    mtype='http://www.opengis.net/cat/csw/2.0.2',
-    identifier=None, pagesize=10):
-    ''' parse metadata '''
+                 mtype='http://www.opengis.net/cat/csw/2.0.2',
+                 identifier=None,
+                 pagesize=10):
+    """Parse metadata
 
-    if identifier is None:
-        identifier = uuid.uuid4().urn
+    Parameters
+    ----------
+    context:
+    record: str
+    repos:
+    mtype: str, optional
+    identifier: str, optional
+    pagesize: int, optional
 
+    Returns
+    -------
+
+    """
+
+    identifier = identifier or uuid.uuid4().urn
+    handlers = {
+        'http://www.opengis.net/cat/csw/2.0.2': parse_csw,
+        'urn:geoss:waf': parse_waf,
+        'http://www.opengis.net/wms': parse_wms,
+        'http://www.opengis.net/wmts/1.0': parse_wmts,
+        'http://www.opengis.net/wps/1.0.0': parse_wps,
+        'http://www.opengis.net/wfs': parse_wfs,
+        'http://www.opengis.net/wcs': parse_wcs,
+        'http://www.opengis.net/sos': parse_sos,
+        'http://www.opengis.net/cat/csw/csdgm': parse_fgdc
+    }
+    for namespace, handler in handlers.items():
+        if namespace in mtype:
+            result = handler(
+                context, repos, record, identifier, mtype, pagesize=pagesize)
+            break
+    else:  # could not find any handler to parse the metadata
+        raise RuntimeError("Unrecognized metadata type: {!r}".format(mtype))
+    return result
+
+
+def parse_csw(context, repos, record, identifier, pagesize=10):
+    if record.startswith("http"):
+        LOGGER.info('CSW service detected, fetching via HTTP')
+        try:
+            result = _parse_csw_service(
+                context, repos, record, identifier, pagesize)
+        except Exception as err:
+            # TODO: implement better exception handling
+            if "ExceptionReport" in str(err):
+                msg = 'CSW harvesting error: {}'.format(str(err))
+                LOGGER.exception(msg)
+                raise RuntimeError(msg)
+            else:
+                LOGGER.debug('Not a CSW, attempting to fetch Dublin Core')
+                try:
+                    content = util.http_request('GET', record)
+                except Exception as err:
+                    raise RuntimeError('HTTP error: {}'.format(str(err)))
+                else:
+                    parsed = _parse_dc(
+                        context,
+                        repos,
+                        etree.fromstring(content, context.parser)
+                    )
+                    result = [parsed]
+    else:  # csw:Record
+        result = _parse_metadata(context, repos, record)
+    return result
+
+
+def _parse_csw_service(context, repos, record, identifier, pagesize):
+    from owslib.csw import CatalogueServiceWeb
+
+    recobjs = []  # records
+    serviceobj = repos.dataset()
+
+    # if init raises error, this might not be a CSW
+    md = CatalogueServiceWeb(record, timeout=60)
+
+    LOGGER.info('Setting CSW service metadata')
+    # generate record of service instance
+    _set(context, serviceobj, 'pycsw:Identifier', identifier)
+    _set(context, serviceobj, 'pycsw:Typename', 'csw:Record')
+    _set(context, serviceobj, 'pycsw:Schema', 'http://www.opengis.net/cat/csw/2.0.2')
+    _set(context, serviceobj, 'pycsw:MdSource', record)
+    _set(context, serviceobj, 'pycsw:InsertDate', util.get_today_and_now())
+    _set(
+        context,
+        serviceobj,
+        'pycsw:AnyText',
+        util.get_anytext(md._exml)
+    )
+    _set(context, serviceobj, 'pycsw:Type', 'service')
+    _set(context, serviceobj, 'pycsw:Title', md.identification.title)
+    _set(context, serviceobj, 'pycsw:Abstract', md.identification.abstract)
+    _set(context, serviceobj, 'pycsw:Keywords', ','.join(md.identification.keywords))
+    _set(context, serviceobj, 'pycsw:Creator', md.provider.contact.name)
+    _set(context, serviceobj, 'pycsw:Publisher', md.provider.name)
+    _set(context, serviceobj, 'pycsw:Contributor', md.provider.contact.name)
+    _set(context, serviceobj, 'pycsw:OrganizationName', md.provider.contact.name)
+    _set(context, serviceobj, 'pycsw:AccessConstraints', md.identification.accessconstraints)
+    _set(context, serviceobj, 'pycsw:OtherConstraints', md.identification.fees)
+    _set(context, serviceobj, 'pycsw:Source', record)
+    _set(context, serviceobj, 'pycsw:Format', md.identification.type)
+
+    _set(context, serviceobj, 'pycsw:ServiceType', 'OGC:CSW')
+    _set(context, serviceobj, 'pycsw:ServiceTypeVersion', md.identification.version)
+    _set(context, serviceobj, 'pycsw:Operation', ','.join([d.name for d in md.operations]))
+    _set(context, serviceobj, 'pycsw:CouplingType', 'tight')
+
+    links = [
+        '%s,OGC-CSW Catalogue Service for the Web,OGC:CSW,%s' % (identifier, md.url)
+    ]
+
+    _set(context, serviceobj, 'pycsw:Links', '^'.join(links))
+    _set(context, serviceobj, 'pycsw:XML', caps2iso(serviceobj, md, context))
+
+    recobjs.append(serviceobj)
+
+    # get all supported typenames of metadata
+    # so we can harvest the entire CSW
+
+    # try for ISO, settle for Dublin Core
+    csw_typenames = 'csw:Record'
+    csw_outputschema = 'http://www.opengis.net/cat/csw/2.0.2'
+
+    grop = md.get_operation_by_name('GetRecords')
+    if all(['gmd:MD_Metadata' in grop.parameters['typeNames']['values'],
+            'http://www.isotc211.org/2005/gmd' in grop.parameters['outputSchema']['values']]):
+        LOGGER.debug('CSW supports ISO')
+        csw_typenames = 'gmd:MD_Metadata'
+        csw_outputschema = 'http://www.isotc211.org/2005/gmd'
+
+
+    # now get all records
+    # get total number of records to loop against
+
+    try:
+        md.getrecords2(typenames=csw_typenames, resulttype='hits',
+                       outputschema=csw_outputschema)
+        matches = md.results['matches']
+    except:  # this is a CSW, but server rejects query
+        raise RuntimeError(md.response)
+
+    if pagesize > matches:
+        pagesize = matches
+
+    LOGGER.info('Harvesting %d CSW records', matches)
+
+    # loop over all catalogue records incrementally
+    for r in range(1, matches+1, pagesize):
+        try:
+            md.getrecords2(typenames=csw_typenames, startposition=r,
+                           maxrecords=pagesize, outputschema=csw_outputschema, esn='full')
+        except Exception as err:  # this is a CSW, but server rejects query
+            raise RuntimeError(md.response)
+        for k, v in md.records.items():
+            # try to parse metadata
+            try:
+                LOGGER.info('Parsing metadata record: %s', v.xml)
+                if csw_typenames == 'gmd:MD_Metadata':
+                    recobjs.append(_parse_iso(context, repos,
+                                              etree.fromstring(v.xml, context.parser)))
+                else:
+                    recobjs.append(_parse_dc(context, repos,
+                                             etree.fromstring(v.xml, context.parser)))
+            except Exception as err:  # parsing failed for some reason
+                LOGGER.exception('Metadata parsing failed')
+
+    return recobjs
+
+def old_parse_record(context, record, repos=None,
+                     mtype='http://www.opengis.net/cat/csw/2.0.2',
+                     identifier=None,
+                     pagesize=10):
+    identifier = identifier or uuid.uuid4().urn
     # parse web services
     if (mtype == 'http://www.opengis.net/cat/csw/2.0.2' and
         isinstance(record, str) and record.startswith('http')):
@@ -257,12 +428,9 @@ def _parse_csw(context, repos, record, identifier, pagesize=10):
 
     return recobjs
 
-def _parse_waf(context, repos, record, identifier):
-
+def parse_waf(context, repos, record, *args, **kwargs):
     recobjs = []
-
     content = util.http_request('GET', record)
-
     LOGGER.debug(content)
 
     try:
@@ -273,7 +441,6 @@ def _parse_waf(context, repos, record, identifier):
 
     up = urlparse(record)
     links = []
-
     LOGGER.info('collecting links')
     for link in tree.xpath('//a/@href'):
         link = link.strip()
@@ -304,156 +471,169 @@ def _parse_waf(context, repos, record, identifier):
         recobj.source = link
         recobj.mdsource = link
         recobjs.append(recobj)
-
     return recobjs
 
-def _parse_wms(context, repos, record, identifier):
 
+def parse_wms(context, repos, record, identifier):
     from owslib.wms import WebMapService
-
     recobjs = []
     serviceobj = repos.dataset()
-
-    md = WebMapService(record)
     try:
         md = WebMapService(record, version='1.3.0')
     except Exception as err:
         LOGGER.info('Looks like WMS 1.3.0 is not supported; trying 1.1.1', err)
         md = WebMapService(record)
-
-    # generate record of service instance
-    _set(context, serviceobj, 'pycsw:Identifier', identifier)
-    _set(context, serviceobj, 'pycsw:Typename', 'csw:Record')
-    _set(context, serviceobj, 'pycsw:Schema', 'http://www.opengis.net/wms')
-    _set(context, serviceobj, 'pycsw:MdSource', record)
-    _set(context, serviceobj, 'pycsw:InsertDate', util.get_today_and_now())
-    _set(
-        context,
-        serviceobj,
-        'pycsw:AnyText',
-        util.get_anytext(md.getServiceXML())
-    )
-    _set(context, serviceobj, 'pycsw:Type', 'service')
-    _set(context, serviceobj, 'pycsw:Title', md.identification.title)
-    _set(context, serviceobj, 'pycsw:Abstract', md.identification.abstract)
-    _set(context, serviceobj, 'pycsw:Keywords', ','.join(md.identification.keywords))
-    _set(context, serviceobj, 'pycsw:Creator', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:Publisher', md.provider.name)
-    _set(context, serviceobj, 'pycsw:Contributor', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:OrganizationName', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:AccessConstraints', md.identification.accessconstraints)
-    _set(context, serviceobj, 'pycsw:OtherConstraints', md.identification.fees)
-    _set(context, serviceobj, 'pycsw:Source', record)
-    _set(context, serviceobj, 'pycsw:Format', md.identification.type)
+    links = [
+        '{identifier},OGC-WMS Web Map Service,OGC:WMS,{url}'.format(
+            identifier=identifier, url=md.url)
+    ]
     for c in md.contents:
         if md.contents[c].parent is None:
             bbox = md.contents[c].boundingBoxWGS84
             tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-            _set(context, serviceobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
+            wkt_polygon = util.bbox2wktpolygon(tmp)
             break
-    _set(context, serviceobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:4326')
-    _set(context, serviceobj, 'pycsw:DistanceUOM', 'degrees')
-    _set(context, serviceobj, 'pycsw:ServiceType', 'OGC:WMS')
-    _set(context, serviceobj, 'pycsw:ServiceTypeVersion', md.identification.version)
-    _set(context, serviceobj, 'pycsw:Operation', ','.join([d.name for d in md.operations]))
-    _set(context, serviceobj, 'pycsw:OperatesOn', ','.join(list(md.contents)))
-    _set(context, serviceobj, 'pycsw:CouplingType', 'tight')
-
-    links = [
-        '%s,OGC-WMS Web Map Service,OGC:WMS,%s' % (identifier, md.url),
-    ]
-
-    _set(context, serviceobj, 'pycsw:Links', '^'.join(links))
-    _set(context, serviceobj, 'pycsw:XML', caps2iso(serviceobj, md, context))
-
+    # generate record of service instance
+    service_info = {
+        "pycsw:Identifier": identifier,
+        "pycsw:Typename": "csw:Record",
+        "pycsw:Schema": 'http://www.opengis.net/wms',
+        "pycsw:MdSource": record,
+        "pycsw:InsertDate": util.get_today_and_now(),
+        "pycsw:AnyText": util.get_anytext(md.getServiceXML()),
+        "pycsw:Type": "service",
+        "pycsw:Title": md.identification.title,
+        "pycsw:Abstract": md.identification.abstract,
+        "pycsw:Keywords": ','.join(md.identification.keywords),
+        "pycsw:Creator": md.provider.contact.name,
+        "pycsw:Publisher": md.provider.name,
+        "pycsw:Contributor": md.provider.contact.name,
+        "pycsw:OrganizationName": md.provider.contact.name,
+        "pycsw:AccessConstraints": md.identification.accessconstraints,
+        "pycsw:OtherConstraints": md.identification.fees,
+        "pycsw:Source": record,
+        "pycsw:Format": md.identification.type,
+        "pycsw:CRS": 'urn:ogc:def:crs:EPSG:6.11:4326',
+        "pycsw:DistanceUOM": 'degrees',
+        "pycsw:ServiceType": 'OGC:WMS',
+        "pycsw:ServiceTypeVersion": md.identification.version,
+        "pycsw:Operation": ','.join([d.name for d in md.operations]),
+        "pycsw:OperatesOn": ','.join(list(md.contents)),
+        "pycsw:CouplingType": 'tight',
+        "pycsw:Links": '^'.join(links),
+        "pycsw:XML": caps2iso(serviceobj, md, context),
+        "pycsw:BoundingBox": wkt_polygon,
+    }
+    for field, value in service_info.items():
+        _set(context, serviceobj, mapping, value)
     recobjs.append(serviceobj)
-
     # generate record foreach layer
-
-    LOGGER.info('Harvesting %d WMS layers', len(md.contents))
-
+    LOGGER.info('Harvesting {} WMS layers'.format(len(md.contents)))
     for layer in md.contents:
-        recobj = repos.dataset()
-        identifier2 = '%s-%s' % (identifier, md.contents[layer].name)
-        _set(context, recobj, 'pycsw:Identifier', identifier2)
-        _set(context, recobj, 'pycsw:Typename', 'csw:Record')
-        _set(context, recobj, 'pycsw:Schema', 'http://www.opengis.net/wms')
-        _set(context, recobj, 'pycsw:MdSource', record)
-        _set(context, recobj, 'pycsw:InsertDate', util.get_today_and_now())
-        _set(context, recobj, 'pycsw:Type', 'dataset')
-        _set(context, recobj, 'pycsw:ParentIdentifier', identifier)
-        _set(context, recobj, 'pycsw:Title', md.contents[layer].title)
-        _set(context, recobj, 'pycsw:Abstract', md.contents[layer].abstract)
-        _set(context, recobj, 'pycsw:Keywords', ','.join(md.contents[layer].keywords))
-
-        _set(
-            context,
-            recobj,
-            'pycsw:AnyText',
-            util.get_anytext([
-                md.contents[layer].title,
-                md.contents[layer].abstract,
-                ','.join(md.contents[layer].keywords)
-            ])
-        )
-
-        bbox = md.contents[layer].boundingBoxWGS84
-        if bbox is not None:
-            tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-            _set(context, recobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
-            _set(context, recobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:4326')
-            _set(context, recobj, 'pycsw:DistanceUOM', 'degrees')
-        else:
-            bbox = md.contents[layer].boundingBox
-            if bbox:
-                tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-                _set(context, recobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
-                _set(context, recobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:%s' % \
-                bbox[-1].split(':')[1])
-
-        times = md.contents[layer].timepositions
-        if times is not None:  # get temporal extent
-            time_begin = time_end = None
-            if len(times) == 1 and len(times[0].split('/')) > 1:
-                time_envelope = times[0].split('/')
-                time_begin = time_envelope[0]
-                time_end = time_envelope[1]
-            elif len(times) > 1:  # get first/last
-                time_begin = times[0]
-                time_end = times[-1]
-            if all([time_begin is not None, time_end is not None]):
-                _set(context, recobj, 'pycsw:TempExtent_begin', time_begin)
-                _set(context, recobj, 'pycsw:TempExtent_end', time_end)
-
-        params = {
-            'service': 'WMS',
-            'version': '1.1.1',
-            'request': 'GetMap',
-            'layers': md.contents[layer].name,
-            'format': 'image/png',
-            'height': '200',
-            'width': '200',
-            'srs': 'EPSG:4326',
-            'bbox':  '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3]),
-            'styles': ''
-        }
-
-        links = [
-            '%s,OGC-Web Map Service,OGC:WMS,%s' % (md.contents[layer].name, md.url),
-            '%s,Web image thumbnail (URL),WWW:LINK-1.0-http--image-thumbnail,%s' % (md.contents[layer].name, build_get_url(md.url, params))
-        ]
-
-        _set(context, recobj, 'pycsw:Links', '^'.join(links))
-        _set(context, recobj, 'pycsw:XML', caps2iso(recobj, md, context))
-
-        recobjs.append(recobj)
-
+        record = _get_wms_layer_record(repos, md.contents[layer])
+        recobjs.append(record)
     return recobjs
 
-def _parse_wmts(context, repos, record, identifier):
+
+def _get_wms_layer_record(repos, layer_info):
+    record = repos.dataset()
+    wkt_polygon, crs, distance_units, bbox = _get_wms_layer_bbox(layer_info)
+    begin, end = _get_wms_layer_temporal_info(layer_info.timepositions)
+    info = {
+        "pycsw:Identifier": '{}-{}'.format(identifier, layer_info.name),
+        "pycsw:Typename": 'csw:Record',
+        "pycsw:Schema": 'http://www.opengis.net/wms',
+        "pycsw:MdSource": record,
+        "pycsw:InsertDate": util.get_today_and_now(),
+        "pycsw:Type": 'dataset',
+        "pycsw:ParentIdentifier": identifier,
+        "pycsw:Title": layer_info.title,
+        "pycsw:Abstract": layer_info.abstract,
+        "pycsw:Keywords": ','.join(layer_info.keywords),
+        "pycsw:AnyText": util.get_anytext([
+            layer_info.title,
+            layer_info.abstract,
+            ','.join(layer_info.keywords)
+        ]),
+        "pycsw:BoundingBox": wkt_polygon,
+        "pycsw:CRS": crs,
+        "pycsw:DistanceUOM": distance_units,
+        "pycsw:TempExtent_begin": begin,
+        "pycsw:TempExtent_end": end,
+        "pycsw:Links": '^'.join([
+            '{},OGC-Web Map Service,OGC:WMS,{}'.format(layer_info.name,
+                                                       md.url),
+            _build_wms_layer_thumbnail_link(
+                layer_info.name, md.url, bbox)
+        ]),
+        "pycsw:XML": caps2iso(recobj, md, context),
+    }
+    for field, value in info.items():
+        if value is not None:
+            setattr(record, context.md_core_model['mappings'][field],
+                    value)
+    return record
+
+
+def _get_wms_layer_bbox(layer_info):
+    bbox = layer_info.boundingBoxWGS84
+    wkt_polygon = None
+    crs = None
+    distance_units = None
+    if bbox is not None:
+        tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
+        wkt_polygon = util.bbox2wktpolygon(tmp)
+        crs = 'urn:ogc:def:crs:EPSG:6.11:4326'
+        distance_units = 'degrees'
+    else:
+        bbox = layer_info.boundingBox
+        if bbox:
+            tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
+            _set(context, recobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
+            _set(context, recobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:%s' % \
+                 bbox[-1].split(':')[1])
+            wkt_polygon = util.bbox2wktpolygon(tmp)
+            epsg_code = bbox[-1].split(":")[1]
+            crs = 'urn:ogc:def:crs:EPSG:6.11:{}'.format(epsg_code)
+    return wkt_polygon, crs, distance_units, bbox
+
+
+def _get_wms_layer_temporal_info(time_positions):
+    time_begin = time_end = None
+    if len(time_positions) == 1 and len(time_positions[0].split('/')) > 1:
+        time_envelope = time_positions[0].split('/')
+        time_begin = time_envelope[0]
+        time_end = time_envelope[1]
+    elif len(time_positions) > 1:  # get first/last
+        time_begin = time_positions[0]
+        time_end = time_positions[-1]
+    return time_begin, time_end
+
+
+def _build_wms_layer_thumbnail_link(layer_name, url, bbox):
+    params = {
+        'service': 'WMS',
+        'version': '1.1.1',
+        'request': 'GetMap',
+        'layers': layer_name,
+        'format': 'image/png',
+        'height': '200',
+        'width': '200',
+        'srs': 'EPSG:4326',
+        'bbox':  '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3]),
+        'styles': ''
+    }
+    thumbnail_url = build_get_url(url, params)
+    return (
+        "{},Web image thumbnail (URL),WWW:LINK-1.0-http--"
+        "image-thumbnail,{}".format(layer_name, thumbnail_url)
+    )
+
+
+
+def parse_wmts(context, repos, record, identifier):
 
     from owslib.wmts import WebMapTileService
-
     recobjs = []
     serviceobj = repos.dataset()
 
@@ -580,10 +760,8 @@ def _parse_wmts(context, repos, record, identifier):
     return recobjs
 
 
-def _parse_wfs(context, repos, record, identifier, version):
-
+def parse_wfs(context, repos, record, identifier, version):
     from owslib.wfs import WebFeatureService
-
     bboxs = []
     recobjs = []
     serviceobj = repos.dataset()
@@ -697,13 +875,12 @@ def _parse_wfs(context, repos, record, identifier, version):
     _set(context, serviceobj, 'pycsw:XML', caps2iso(serviceobj, md, context))
 
     recobjs.insert(0, serviceobj)
-
     return recobjs
 
-def _parse_wcs(context, repos, record, identifier):
+
+def parse_wcs(context, repos, record, identifier):
 
     from owslib.wcs import WebCoverageService
-
     bboxs = []
     recobjs = []
     serviceobj = repos.dataset()
@@ -807,10 +984,10 @@ def _parse_wcs(context, repos, record, identifier):
 
     return recobjs
 
-def _parse_wps(context, repos, record, identifier):
+
+def parse_wps(context, repos, record, identifier):
 
     from owslib.wps import WebProcessingService
-
     recobjs = []
     serviceobj = repos.dataset()
 
@@ -899,7 +1076,7 @@ def _parse_wps(context, repos, record, identifier):
     return recobjs
 
 
-def _parse_sos(context, repos, record, identifier, version):
+def parse_sos(context, repos, record, identifier, version):
 
     from owslib.sos import SensorObservationService
 
@@ -1018,7 +1195,7 @@ def _parse_sos(context, repos, record, identifier, version):
     return recobjs
 
 
-def _parse_fgdc(context, repos, exml):
+def parse_fgdc(context, repos, exml):
 
     from owslib.fgdc import Metadata
 
