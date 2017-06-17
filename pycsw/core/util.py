@@ -33,6 +33,7 @@
 # =================================================================
 
 import datetime
+from importlib import import_module
 import logging
 import time
 
@@ -50,6 +51,12 @@ LOGGER = logging.getLogger(__name__)
 ranking_enabled = False
 ranking_pass = False
 ranking_query_geometry = ''
+
+
+def lazy_load(python_path):
+    path, named_object = python_path.rpartition(".")[::2]
+    loaded_module = import_module(path)
+    return getattr(loaded_module, named_object)
 
 
 def get_today_and_now():
