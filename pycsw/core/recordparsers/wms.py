@@ -9,47 +9,15 @@ from .. import util
 LOGGER = logging.getLogger(__name__)
 
 
-def _parse_wms_service():
-    pass
-
-
-def parse_wms(context, repos, record, identifier, *args, **kwargs):
+def parse(context, repos, record, identifier, *args, **kwargs):
     records = []
     try:
         md = WebMapService(record, version='1.3.0')
     except Exception as err:
-        LOGGER.info('Looks like WMS 1.3.0 is not supported; trying 1.1.1', err)
+        LOGGER.info("Looks like WMS 1.3.0 is not supported; trying 1.1.1", err)
         md = WebMapService(record)
-    wkt_polygon = _get_wms_service_wkt_polygon(md)
-    # generate record of service instance
-    service_info = base.get_general_service_info(
-        metadata=md,
-        identifier=identifier,
-        record=record,
-        typename="csw:Record",
-        schema_url="http://www.opengis.net/wms",
-        crs="urn:ogc:def:crs:EPSG:6.11:4326",
-        distance_unit="degrees",
-        service_type="OGC:WMS",
-        coupling="tight"
-    )
-    service_links = [
-        '{identifier},OGC-WMS Web Map Service,OGC:WMS,{url}'.format(
-            identifier=identifier, url=md.url)
-    ]
-    service_info.update({
-        "pycsw:Links": '^'.join(service_links),
-        "pycsw:BoundingBox": wkt_polygon,
-    })
-    service_record = base.generate_record(
-        repos.dataset,
-        service_info,
-        context,
-        generate_iso_xml=True,
-        metadata=md
-    )
-    records.append(service_record)
-    # generate record foreach layer
+    records.append(
+        _generate_service_record(context, repos, record, identifier, md))
     LOGGER.info('Harvesting {} WMS layers'.format(len(md.contents)))
     for layer_info in _get_wms_layers_info(metadata=md.contents,
                                            identifier=identifier,
@@ -64,6 +32,38 @@ def parse_wms(context, repos, record, identifier, *args, **kwargs):
         )
         records.append(layer_record)
     return records
+
+
+def _generate_service_record(context, repos, record, identifier,
+                             service_metadata):
+    service_info = base.get_general_service_info(
+        metadata=service_metadata,
+        identifier=identifier,
+        record=record,
+        typename="csw:Record",
+        schema_url="http://www.opengis.net/wms",
+        crs="urn:ogc:def:crs:EPSG:6.11:4326",
+        distance_unit="degrees",
+        service_type="OGC:WMS",
+        service_type_version=service_metadata.identification.version,
+        coupling="tight"
+    )
+    service_links = [
+        '{identifier},OGC-WMS Web Map Service,OGC:WMS,{url}'.format(
+            identifier=identifier, url=service_metadata.url)
+    ]
+    service_info.update({
+        "pycsw:Links": '^'.join(service_links),
+        "pycsw:BoundingBox": base.get_service_wkt_polygon(service_metadata),
+    })
+    service_record = base.generate_record(
+        repos.dataset,
+        service_info,
+        context,
+        generate_iso_xml=True,
+        metadata=service_metadata
+    )
+    return service_record
 
 
 def _get_wms_layers_info(metadata, identifier, record, service_url):
@@ -95,26 +95,18 @@ def _get_wms_layers_info(metadata, identifier, record, service_url):
 
 
 def _get_wms_layer_bbox(layer_info):
-    bbox = layer_info.boundingBoxWGS84
-    wkt_polygon = None
-    crs = None
-    distance_units = None
-    if bbox is not None:
-        tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-        wkt_polygon = util.bbox2wktpolygon(tmp)
+    try:
+        bbox = ",".join(str(coord) for coord in layer_info.boundingBoxWGS84)
         crs = 'urn:ogc:def:crs:EPSG:6.11:4326'
-        distance_units = 'degrees'
-    else:
-        bbox = layer_info.boundingBox
-        if bbox:
-            tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-            _set(context, recobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
-            _set(context, recobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:%s' % \
-                 bbox[-1].split(':')[1])
-            wkt_polygon = util.bbox2wktpolygon(tmp)
-            epsg_code = bbox[-1].split(":")[1]
-            crs = 'urn:ogc:def:crs:EPSG:6.11:{}'.format(epsg_code)
-    return wkt_polygon, crs, distance_units, bbox
+        distance_unit = 'degrees'
+    except TypeError:
+        coords = layer_info.boundingBox[:-1]
+        bbox = ",".join(str(coord) for coord in coords)
+        epsg_code = layer_info.boundingBox[-1].split(":")[1]
+        crs = "urn:ogc:def:crs:EPSG:6.11:{}".format(epsg_code)
+        distance_unit = None
+    wkt_polygon = util.bbox2wktpolygon(bbox)
+    return wkt_polygon, crs, distance_unit, bbox
 
 
 def _get_wms_layer_temporal_info(time_positions):
@@ -147,15 +139,3 @@ def _build_wms_layer_thumbnail_link(layer_name, url, bbox):
         "{},Web image thumbnail (URL),WWW:LINK-1.0-http--"
         "image-thumbnail,{}".format(layer_name, thumbnail_url)
     )
-
-
-def _get_wms_service_wkt_polygon(metadata):
-    for child_name, child_info in metadata.items():
-        if child_info.parent is None:
-            root_metadata = child_info
-            break
-    else:
-        raise RuntimeError("Could not find root service metadata element")
-    bbox = ",".join(str(i) for i in root_metadata.boundingBoxWGS84)
-    return util.bbox2wktpolygon(bbox)
-

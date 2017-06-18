@@ -1,7 +1,48 @@
-# TODO - Differentiate between wmts version 1 in the parse() function
-def parse_wmts(context, repos, record, identifier):
+import logging
 
-    from owslib.wmts import WebMapTileService
+from owslib.wmts import WebMapTileService
+
+from . import base
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _generate_service_record(context, repos, record, identifier,
+                             service_metadata):
+    service_info = base.get_general_service_info(
+        metadata=service_metadata,
+        identifier=identifier,
+        record=record,
+        typename="csw:Record",
+        schema_url="http://www.opengis.net/wmts/1.0",
+        crs="urn:ogc:def:crs:EPSG:6.11:4326",
+        distance_unit="degrees",
+        service_type="OGC:WMTS",
+        service_type_version=service_metadata.identification.version,
+        coupling="tight"
+
+    )
+    service_links = [
+        '{identifier},OGC-WMTS Web Map Service,OGC:WMTS,{url}'.format(
+            identifier=identifier, url=service_metadata.url)
+    ]
+    service_info.update({
+        "pycsw:Links": '^'.join(service_links),
+        "pycsw:BoundingBox": base.get_service_wkt_polygon(service_metadata),
+    })
+    service_record = base.generate_record(
+        repos.dataset,
+        service_info,
+        context,
+        generate_iso_xml=True,
+        metadata=service_metadata
+    )
+    return service_record
+
+
+# TODO - Differentiate between wmts version 1 in the parse() function
+def parse(context, repos, record, identifier):
+
     recobjs = []
     serviceobj = repos.dataset()
 

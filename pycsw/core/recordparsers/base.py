@@ -70,3 +70,14 @@ def get_general_service_info(metadata, identifier, record, typename,
         "pycsw:CouplingType": coupling,
     })
     return general_info
+
+
+def get_service_wkt_polygon(metadata):
+    for child_name, child_info in metadata.items():
+        if child_info.parent is None:
+            root_metadata = child_info
+            break
+    else:
+        raise RuntimeError("Could not find root service metadata element")
+    bbox = ",".join(str(i) for i in root_metadata.boundingBoxWGS84)
+    return util.bbox2wktpolygon(bbox)
