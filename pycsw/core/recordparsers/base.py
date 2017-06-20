@@ -72,6 +72,34 @@ def get_general_service_info(metadata, identifier, record, typename,
     return general_info
 
 
+def get_service_layers_info(metadata, identifier, record, service_url):
+    for layer_name, layer_metadata in metadata.items():
+        wkt_polygon, crs, distance_unit, bbox = _get_wms_layer_bbox(
+            layer_metadata)
+        begin, end = _get_wms_layer_temporal_info(layer_metadata.timepositions)
+        thumbnail_link = _build_wms_layer_thumbnail_link(
+            layer_metadata.name, service_url, bbox)
+        layer_link = "{},OGC-Web Map Service,OGC:WMS,{}".format(
+            layer_metadata.name, service_url),
+
+        links = "^".join([layer_link, thumbnail_link]),
+        info = base.get_general_info(
+            metadata=layer_metadata,
+            identifier=identifier,
+            record=record,
+            typename="csw:Record",
+            schema_url="http://www.opengis.net/wms",
+            crs=crs,
+            distance_unit=distance_unit
+        )
+        info.update({
+            "pycsw:TempExtent_begin": begin,
+            "pycsw:TempExtent_end": end,
+            "pycsw:Links": links,
+        })
+        yield info
+
+
 def get_service_wkt_polygon(metadata):
     for child_name, child_info in metadata.items():
         if child_info.parent is None:
@@ -81,3 +109,41 @@ def get_service_wkt_polygon(metadata):
         raise RuntimeError("Could not find root service metadata element")
     bbox = ",".join(str(i) for i in root_metadata.boundingBoxWGS84)
     return util.bbox2wktpolygon(bbox)
+
+
+def generate_service_record(context, repos, record, identifier,
+                            service_metadata, schema_url, service_type,
+                            typename="csw:Record",
+                            crs="urn:ogc:def:crs:EPSG:6.11:4326",
+                            distance_unit="degrees",
+                            coupling="tight",
+                            link_description=""):
+    service_info = get_general_service_info(
+        metadata=service_metadata,
+        identifier=identifier,
+        record=record,
+        typename=typename,
+        schema_url=schema_url,
+        crs=crs,
+        distance_unit=distance_unit,
+        service_type=service_type,
+        service_type_version=service_metadata.identification.version,
+        coupling=coupling
+    )
+    service_links = [
+        '{description},{url}'.format(
+            description=link_description, url=service_metadata.url)
+    ]
+    service_info.update({
+        "pycsw:Links": '^'.join(service_links),
+        "pycsw:BoundingBox": get_service_wkt_polygon(service_metadata),
+    })
+    service_record = generate_record(
+        repos.dataset,
+        service_info,
+        context,
+        generate_iso_xml=True,
+        metadata=service_metadata
+    )
+    return service_record
+

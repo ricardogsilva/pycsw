@@ -7,39 +7,6 @@ from . import base
 LOGGER = logging.getLogger(__name__)
 
 
-def _generate_service_record(context, repos, record, identifier,
-                             service_metadata):
-    service_info = base.get_general_service_info(
-        metadata=service_metadata,
-        identifier=identifier,
-        record=record,
-        typename="csw:Record",
-        schema_url="http://www.opengis.net/wmts/1.0",
-        crs="urn:ogc:def:crs:EPSG:6.11:4326",
-        distance_unit="degrees",
-        service_type="OGC:WMTS",
-        service_type_version=service_metadata.identification.version,
-        coupling="tight"
-
-    )
-    service_links = [
-        '{identifier},OGC-WMTS Web Map Service,OGC:WMTS,{url}'.format(
-            identifier=identifier, url=service_metadata.url)
-    ]
-    service_info.update({
-        "pycsw:Links": '^'.join(service_links),
-        "pycsw:BoundingBox": base.get_service_wkt_polygon(service_metadata),
-    })
-    service_record = base.generate_record(
-        repos.dataset,
-        service_info,
-        context,
-        generate_iso_xml=True,
-        metadata=service_metadata
-    )
-    return service_record
-
-
 # TODO - Differentiate between wmts version 1 in the parse() function
 def parse(context, repos, record, identifier):
 
@@ -47,57 +14,18 @@ def parse(context, repos, record, identifier):
     serviceobj = repos.dataset()
 
     md = WebMapTileService(record)
-    # generate record of service instance
-    _set(context, serviceobj, 'pycsw:Identifier', identifier)
-    _set(context, serviceobj, 'pycsw:Typename', 'csw:Record')
-    _set(context, serviceobj, 'pycsw:Schema', 'http://www.opengis.net/wmts/1.0')
-    _set(context, serviceobj, 'pycsw:MdSource', record)
-    _set(context, serviceobj, 'pycsw:InsertDate', util.get_today_and_now())
-    _set(
-        context,
-        serviceobj,
-        'pycsw:AnyText',
-        util.get_anytext(md.getServiceXML())
-    )
-    _set(context, serviceobj, 'pycsw:Type', 'service')
-    _set(context, serviceobj, 'pycsw:Title', md.identification.title)
-    _set(context, serviceobj, 'pycsw:Abstract', md.identification.abstract)
-    _set(context, serviceobj, 'pycsw:Keywords', ','.join(md.identification.keywords))
-    _set(context, serviceobj, 'pycsw:Creator', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:Publisher', md.provider.name)
-    _set(context, serviceobj, 'pycsw:Contributor', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:OrganizationName', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:AccessConstraints', md.identification.accessconstraints)
-    _set(context, serviceobj, 'pycsw:OtherConstraints', md.identification.fees)
-    _set(context, serviceobj, 'pycsw:Source', record)
-    _set(context, serviceobj, 'pycsw:Format', md.identification.type)
-
-    for c in md.contents:
-        if md.contents[c].parent is None:
-            bbox = md.contents[c].boundingBoxWGS84
-            tmp = '%s,%s,%s,%s' % (bbox[0], bbox[1], bbox[2], bbox[3])
-            _set(context, serviceobj, 'pycsw:BoundingBox', util.bbox2wktpolygon(tmp))
-            break
-    _set(context, serviceobj, 'pycsw:CRS', 'urn:ogc:def:crs:EPSG:6.11:4326')
-    _set(context, serviceobj, 'pycsw:DistanceUOM', 'degrees')
-    _set(context, serviceobj, 'pycsw:ServiceType', 'OGC:WMTS')
-    _set(context, serviceobj, 'pycsw:ServiceTypeVersion', md.identification.version)
-    _set(context, serviceobj, 'pycsw:Operation', ','.join([d.name for d in md.operations]))
-    _set(context, serviceobj, 'pycsw:OperatesOn', ','.join(list(md.contents)))
-    _set(context, serviceobj, 'pycsw:CouplingType', 'tight')
-
-    links = [
-        '%s,OGC-WMTS Web Map Service,OGC:WMTS,%s' % (identifier, md.url),
-        ]
-
-    _set(context, serviceobj, 'pycsw:Links', '^'.join(links))
-    _set(context, serviceobj, 'pycsw:XML', base.caps2iso(serviceobj, md, context))
-
-    recobjs.append(serviceobj)
-
-    # generate record for each layer
-
-    LOGGER.debug('Harvesting %d WMTS layers', len(md.contents))
+    recobjs.append(base.generate_service_record(
+        context=context,
+        repos=repos,
+        record=record,
+        identifier=identifier,
+        service_metadata=md,
+        schema_url="http://www.opengis.net/wmts/1.0",
+        service_type="OGC:WMTS",
+        link_description="{},OGC-WMTS Web Map Service,OGC:WMTS".format(
+            identifier)
+    ))
+    LOGGER.debug('Harvesting {} WMTS layers', len(md.contents))
 
     for layer in md.contents:
         recobj = repos.dataset()

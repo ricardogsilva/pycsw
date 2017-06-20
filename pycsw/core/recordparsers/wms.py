@@ -16,8 +16,17 @@ def parse(context, repos, record, identifier, *args, **kwargs):
     except Exception as err:
         LOGGER.info("Looks like WMS 1.3.0 is not supported; trying 1.1.1", err)
         md = WebMapService(record)
-    records.append(
-        _generate_service_record(context, repos, record, identifier, md))
+    records.append(base.generate_service_record(
+        context=context,
+        repos=repos,
+        record=record,
+        identifier=identifier,
+        service_metadata=md,
+        schema_url="http://www.opengis.net/wms",
+        service_type="OGC:WMS",
+        link_description="{},OGC-WMS Web Map Service,OGC:WMS".format(
+            identifier)
+    ))
     LOGGER.info('Harvesting {} WMS layers'.format(len(md.contents)))
     for layer_info in _get_wms_layers_info(metadata=md.contents,
                                            identifier=identifier,
