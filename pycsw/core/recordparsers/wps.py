@@ -1,58 +1,33 @@
+import logging
+
+from owslib.wps import WebProcessingService
+from owslib.util import build_get_url
+
+from . import base
+
+LOGGER = logging.getLogger(__name__)
+
+
 # TODO - Differentiate between wps 1 and other versions the parse() function
-def parse_wps(context, repos, record, identifier):
-
-    from owslib.wps import WebProcessingService
-    recobjs = []
-    serviceobj = repos.dataset()
-
+def parse(context, repos, record, identifier):
+    records = []
     md = WebProcessingService(record)
-
-    # generate record of service instance
-    _set(context, serviceobj, 'pycsw:Identifier', identifier)
-    _set(context, serviceobj, 'pycsw:Typename', 'csw:Record')
-    _set(context, serviceobj, 'pycsw:Schema', 'http://www.opengis.net/wps/1.0.0')
-    _set(context, serviceobj, 'pycsw:MdSource', record)
-    _set(context, serviceobj, 'pycsw:InsertDate', util.get_today_and_now())
-    _set(
-        context,
-        serviceobj,
-        'pycsw:AnyText',
-        util.get_anytext(md._capabilities)
-    )
-    _set(context, serviceobj, 'pycsw:Type', 'service')
-    _set(context, serviceobj, 'pycsw:Title', md.identification.title)
-    _set(context, serviceobj, 'pycsw:Abstract', md.identification.abstract)
-    _set(context, serviceobj, 'pycsw:Keywords', ','.join(md.identification.keywords))
-    _set(context, serviceobj, 'pycsw:Creator', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:Publisher', md.provider.name)
-    _set(context, serviceobj, 'pycsw:Contributor', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:OrganizationName', md.provider.contact.name)
-    _set(context, serviceobj, 'pycsw:AccessConstraints', md.identification.accessconstraints)
-    _set(context, serviceobj, 'pycsw:OtherConstraints', md.identification.fees)
-    _set(context, serviceobj, 'pycsw:Source', record)
-    _set(context, serviceobj, 'pycsw:Format', md.identification.type)
-
-    _set(context, serviceobj, 'pycsw:ServiceType', 'OGC:WPS')
-    _set(context, serviceobj, 'pycsw:ServiceTypeVersion', md.identification.version)
-    _set(context, serviceobj, 'pycsw:Operation', ','.join([d.name for d in md.operations]))
-    _set(context, serviceobj, 'pycsw:OperatesOn', ','.join([o.identifier for o in md.processes]))
-    _set(context, serviceobj, 'pycsw:CouplingType', 'loose')
-
-    links = [
-        '%s,OGC-WPS Web Processing Service,OGC:WPS,%s' % (identifier, md.url),
-        '%s,OGC-WPS Capabilities service (ver 1.0.0),OGC:WPS-1.1.0-http-get-capabilities,%s' % (identifier, build_get_url(md.url, {'service': 'WPS', 'version': '1.0.0', 'request': 'GetCapabilities'})),
-        ]
-
-    _set(context, serviceobj, 'pycsw:Links', '^'.join(links))
-    _set(context, serviceobj, 'pycsw:XML', base.caps2iso(serviceobj, md, context))
-
-    recobjs.append(serviceobj)
-
-    # generate record foreach process
-
-    LOGGER.info('Harvesting %d WPS processes', len(md.processes))
-
+    records.append(base.generate_service_record(
+        context=context,
+        repos=repos,
+        record=record,
+        identifier=identifier,
+        service_metadata=md,
+        schema_url="http://www.opengis.net/wps/1.0.0",
+        service_type="OGC:WPS",
+        link_description="{},OGC-WMTS Web Map Service,OGC:WMTS".format(
+            identifier)
+    ))
+    LOGGER.debug('Harvesting {} WPS processes'.format(len(md.processes)))
     for process in md.processes:
+
+
+
         recobj = repos.dataset()
         identifier2 = '%s-%s' % (identifier, process.identifier)
         _set(context, recobj, 'pycsw:Identifier', identifier2)
@@ -88,3 +63,17 @@ def parse_wps(context, repos, record, identifier):
         recobjs.append(recobj)
 
     return recobjs
+
+
+def build_wmts_layer_thumbnail_link(layer_name, url):
+    params = {
+        'service': 'WMTS',
+        'version': '1.0.0',
+        'request': 'GetTile',
+        'layers': layer_name,
+    }
+    thumbnail_url = build_get_url(url, params)
+    return (
+        "{},Web image thumbnail (URL),WWW:LINK-1.0-http--"
+        "image-thumbnail,{}".format(layer_name, thumbnail_url)
+    )

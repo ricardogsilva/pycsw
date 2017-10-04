@@ -9,8 +9,10 @@ def caps2iso(record, caps, context):
     apiso_obj = APISO(context.model, context.namespaces, context)
     apiso_obj.ogc_schemas_base = 'http://schemas.opengis.net'
     apiso_obj.url = context.url
-    queryables = dict(apiso_obj.repository['queryables']['SupportedISOQueryables'].items())
-    iso_xml = apiso_obj.write_record(record, 'full', 'http://www.isotc211.org/2005/gmd', queryables, caps)
+    queryables = dict(
+        apiso_obj.repository['queryables']['SupportedISOQueryables'].items())
+    iso_xml = apiso_obj.write_record(
+        record, 'full', 'http://www.isotc211.org/2005/gmd', queryables, caps)
     return etree.tostring(iso_xml)
 
 
@@ -30,6 +32,7 @@ def generate_record(record_cls, info, context,
     return record
 
 
+# TODO: pycsw:ParentIdentifier seems to be missing
 def get_general_info(metadata, identifier, record, typename, schema_url, crs,
                      distance_unit):
     return {
@@ -57,10 +60,12 @@ def get_general_info(metadata, identifier, record, typename, schema_url, crs,
 
 
 def get_general_service_info(metadata, identifier, record, typename,
-                             schema_url, crs, distance_unit, service_type,
-                             service_type_version, coupling):
+                             schema_url, crs, distance_unit,
+                             service_type, coupling):
     general_info = get_general_info(
-        identifier, record, typename, schema_url, metadata)
+        metadata, identifier, record, typename,
+        schema_url, crs, distance_unit
+    )
     general_info.update({
         "pycsw:Type": "service",
         "pycsw:ServiceType": service_type,
@@ -72,32 +77,25 @@ def get_general_service_info(metadata, identifier, record, typename,
     return general_info
 
 
-def get_service_layers_info(metadata, identifier, record, service_url):
-    for layer_name, layer_metadata in metadata.items():
-        wkt_polygon, crs, distance_unit, bbox = _get_wms_layer_bbox(
-            layer_metadata)
-        begin, end = _get_wms_layer_temporal_info(layer_metadata.timepositions)
-        thumbnail_link = _build_wms_layer_thumbnail_link(
-            layer_metadata.name, service_url, bbox)
-        layer_link = "{},OGC-Web Map Service,OGC:WMS,{}".format(
-            layer_metadata.name, service_url),
-
-        links = "^".join([layer_link, thumbnail_link]),
-        info = base.get_general_info(
-            metadata=layer_metadata,
-            identifier=identifier,
-            record=record,
-            typename="csw:Record",
-            schema_url="http://www.opengis.net/wms",
-            crs=crs,
-            distance_unit=distance_unit
-        )
-        info.update({
-            "pycsw:TempExtent_begin": begin,
-            "pycsw:TempExtent_end": end,
-            "pycsw:Links": links,
-        })
-        yield info
+def get_service_layer_info(layer_metadata, identifier, record,
+                           service_url, links, crs, distance_unit):
+    begin, end = get_service_layer_temporal_info(
+        layer_metadata.timepositions)
+    info = get_general_info(
+        metadata=layer_metadata,
+        identifier=identifier,
+        record=record,
+        typename="csw:Record",
+        schema_url="http://www.opengis.net/wms",
+        crs=crs,
+        distance_unit=distance_unit
+    )
+    info.update({
+        "pycsw:TempExtent_begin": begin,
+        "pycsw:TempExtent_end": end,
+        "pycsw:Links": links,
+    })
+    return info
 
 
 def get_service_wkt_polygon(metadata):
@@ -127,7 +125,6 @@ def generate_service_record(context, repos, record, identifier,
         crs=crs,
         distance_unit=distance_unit,
         service_type=service_type,
-        service_type_version=service_metadata.identification.version,
         coupling=coupling
     )
     service_links = [
@@ -146,4 +143,31 @@ def generate_service_record(context, repos, record, identifier,
         metadata=service_metadata
     )
     return service_record
+
+
+def get_service_layer_bbox(layer_info):
+    try:
+        bbox = ",".join(str(coord) for coord in layer_info.boundingBoxWGS84)
+        crs = 'urn:ogc:def:crs:EPSG:6.11:4326'
+        distance_unit = 'degrees'
+    except TypeError:
+        coords = layer_info.boundingBox[:-1]
+        bbox = ",".join(str(coord) for coord in coords)
+        epsg_code = layer_info.boundingBox[-1].split(":")[1]
+        crs = "urn:ogc:def:crs:EPSG:6.11:{}".format(epsg_code)
+        distance_unit = None
+    wkt_polygon = util.bbox2wktpolygon(bbox)
+    return wkt_polygon, crs, distance_unit, bbox
+
+
+def get_service_layer_temporal_info(time_positions):
+    time_begin = time_end = None
+    if len(time_positions) == 1 and len(time_positions[0].split('/')) > 1:
+        time_envelope = time_positions[0].split('/')
+        time_begin = time_envelope[0]
+        time_end = time_envelope[1]
+    elif len(time_positions) > 1:  # get first/last
+        time_begin = time_positions[0]
+        time_end = time_positions[-1]
+    return time_begin, time_end
 
